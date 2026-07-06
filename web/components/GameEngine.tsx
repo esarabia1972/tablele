@@ -191,7 +191,9 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
     } else {
       setButtonStates(prev => ({ ...prev, [chosenOption.palabra]: "wrong" }));
       sndBad();
-      setFeedback(`💪 ${rand(RETRY)}`);
+      const retryMsg = rand(RETRY);
+      setFeedback(`💪 ${retryMsg}`);
+      later(() => speak(retryMsg), 350);
 
       later(() => {
         setButtonStates(prev => ({ ...prev, [chosenOption.palabra]: "dim" }));
@@ -262,7 +264,9 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
         }, 1400);
       } else {
         sndBad();
-        setFeedback(`💪 ${rand(RETRY)}`);
+        const retryMsg = rand(RETRY);
+        setFeedback(`💪 ${retryMsg}`);
+        later(() => speak(retryMsg), 350);
         later(() => {
           setMemoOpen([]);
           setLocked(false);
