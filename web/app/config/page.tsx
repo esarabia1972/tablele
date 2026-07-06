@@ -120,7 +120,7 @@ export default function ConfigPage() {
             </select>
           </div>
           <div className="mb-2">
-            <label className="block text-brand-blue font-bold mb-1">Nivel</label>
+            <label className="block text-brand-blue font-bold mb-1">Etapa</label>
             <div className="flex gap-4">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input type="radio" name="nivel" value="Global" checked readOnly className="w-5 h-5 accent-brand-blue" />
