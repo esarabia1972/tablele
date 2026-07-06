@@ -456,7 +456,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
               // Actually we need to track matched pairs or indices.
               // Let's add matched property to the card object itself in memoCards array!
               return (
-                <div key={idx} className={`aspect-[3/3.2] [perspective:600px] cursor-pointer ${isOpen || c.matched ? '[&>div]:[transform:rotateY(180deg)]' : ''}`} onClick={() => handleMemoClick(idx)}>
+                <div key={idx} className={`aspect-[3/3.8] [perspective:600px] cursor-pointer ${isOpen || c.matched ? '[&>div]:[transform:rotateY(180deg)]' : ''}`} onClick={() => handleMemoClick(idx)}>
                   <div className="w-full h-full relative [transform-style:preserve-3d] transition-transform duration-400">
                     <div className="absolute inset-0 [backface-visibility:hidden] rounded-[16px] flex items-center justify-center text-center shadow-[0_4px_0_rgba(0,0,0,0.14)] p-1 bg-gradient-to-br from-[#4d9de0] to-[#7ec8ff] text-[2rem]">
                       ❓
