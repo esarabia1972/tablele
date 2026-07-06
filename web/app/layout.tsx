@@ -4,6 +4,11 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Tablele",
   description: "App web para crear tableros de aprendizaje de lectura",
+  appleWebApp: {
+    capable: true,
+    title: "Tablele",
+    statusBarStyle: "default",
+  },
 };
 
 export const viewport: Viewport = {

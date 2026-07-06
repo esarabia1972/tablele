@@ -41,8 +41,9 @@ function colorPct(p: number): string {
 export default function InformePage() {
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [uso, setUso] = useState<Record<string, number>>({});
-  const [clearTimer, setClearTimer] = useState<NodeJS.Timeout | null>(null);
-  const [fill, setFill] = useState(0);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pregunta, setPregunta] = useState({ a: 2, b: 3 });
+  const [resp, setResp] = useState("");
 
   useEffect(() => {
     const s = getSessionData();
@@ -117,26 +118,24 @@ export default function InformePage() {
     porJuego.set(e.juego, j);
   }
 
-  const startClear = (e: React.SyntheticEvent) => {
-    e.preventDefault();
-    if (clearTimer) return;
-    setFill(100);
-    const t = setTimeout(() => {
-      clearMetricas();
-      setEventos([]);
-      setUso({});
-      setFill(0);
-      setClearTimer(null);
-    }, 2000);
-    setClearTimer(t);
+  // Candado adulto: suma de dos dígitos antes de borrar
+  const abrirConfirmacion = () => {
+    setPregunta({
+      a: 1 + Math.floor(Math.random() * 9),
+      b: 1 + Math.floor(Math.random() * 9),
+    });
+    setResp("");
+    setConfirmOpen(true);
   };
 
-  const cancelClear = () => {
-    if (clearTimer) {
-      clearTimeout(clearTimer);
-      setClearTimer(null);
-    }
-    setFill(0);
+  const respuestaOk = parseInt(resp) === pregunta.a + pregunta.b;
+
+  const borrarTodo = () => {
+    if (!respuestaOk) return;
+    clearMetricas();
+    setEventos([]);
+    setUso({});
+    setConfirmOpen(false);
   };
 
   const card = "bg-white/80 rounded-[26px] p-5 shadow-[0_6px_0_rgba(0,0,0,0.12)] w-full";
@@ -252,20 +251,58 @@ export default function InformePage() {
         </div>
 
         <button
-          onPointerDown={startClear}
-          onPointerUp={cancelClear}
-          onPointerLeave={cancelClear}
-          onPointerCancel={cancelClear}
-          onContextMenu={(e) => e.preventDefault()}
-          className="relative overflow-hidden bg-brand-pink text-white border-none rounded-[22px] p-4 text-[1.05rem] font-bold cursor-pointer shadow-[0_5px_0_rgba(0,0,0,0.18)] active:translate-y-1 active:shadow-none w-full"
+          onClick={abrirConfirmacion}
+          className="bg-brand-pink text-white border-none rounded-[22px] p-4 text-[1.05rem] font-bold cursor-pointer shadow-[0_5px_0_rgba(0,0,0,0.18)] active:translate-y-1 active:shadow-none w-full"
         >
-          <div
-            className="absolute top-0 left-0 bottom-0 bg-white/45"
-            style={{ width: `${fill}%`, transition: fill > 0 ? "width 2s linear" : "none" }}
-          ></div>
-          <span className="relative z-10">Borrar historial (mantener apretado)</span>
+          Borrar historial
         </button>
       </div>
+
+      {confirmOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-6"
+          onClick={() => setConfirmOpen(false)}
+        >
+          <div
+            className="bg-white rounded-[26px] p-6 w-full max-w-[340px] shadow-xl flex flex-col gap-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-brand-dark font-bold text-lg text-center">
+              Pregunta para adultos
+            </h3>
+            <p className="text-brand-blue text-center">
+              Para borrar todo el historial, respondé:
+              <br />
+              <b className="text-[1.6rem] text-brand-dark">
+                ¿Cuánto es {pregunta.a} + {pregunta.b}?
+              </b>
+            </p>
+            <input
+              type="number"
+              inputMode="numeric"
+              value={resp}
+              onChange={(e) => setResp(e.target.value)}
+              className="w-full text-center text-2xl p-3 rounded-xl border-2 border-brand-blue/20 outline-none focus:border-brand-blue"
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmOpen(false)}
+                className="flex-1 bg-gray-200 text-gray-600 rounded-[18px] p-3 font-bold active:translate-y-1"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={borrarTodo}
+                disabled={!respuestaOk}
+                className="flex-1 bg-brand-pink text-white rounded-[18px] p-3 font-bold shadow-[0_4px_0_rgba(0,0,0,0.18)] active:translate-y-1 active:shadow-none disabled:opacity-40 disabled:shadow-none"
+              >
+                Borrar todo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
