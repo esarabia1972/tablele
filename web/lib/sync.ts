@@ -35,9 +35,24 @@ function collectPayload(username: string) {
   return payload;
 }
 
+/** Sube ya mismo cualquier cambio pendiente (sin esperar el debounce). */
+export async function flushPush(): Promise<void> {
+  if (typeof window === "undefined") return;
+  if (pushTimer) {
+    clearTimeout(pushTimer);
+    pushTimer = null;
+  }
+  await pushNow();
+}
+
 /** Baja config/estrellas/stats del servidor y las vuelca a localStorage. */
 export async function syncFromServer(username: string): Promise<void> {
   if (typeof window === "undefined") return;
+  // Si hay una subida pendiente, mandarla ANTES de bajar,
+  // para no pisar cambios locales con datos viejos del servidor.
+  if (pushTimer) {
+    await flushPush();
+  }
   try {
     const res = await fetch(`/api/datos?username=${encodeURIComponent(username)}`, {
       cache: "no-store",

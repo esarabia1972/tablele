@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import TopBar from "@/components/TopBar";
 import { getConfig, saveConfig, clearSessionData, getSessionData, ConfigTablero } from "@/lib/storage";
-import { syncFromServer } from "@/lib/sync";
+import { syncFromServer, flushPush } from "@/lib/sync";
 import { PALABRAS_DEFAULT, SUGERENCIAS_EMOJI, PalabraDefault } from "@/data/palabras-default";
 
 // Reduce la foto a 512px máx. y la devuelve como JPEG base64
@@ -131,9 +131,10 @@ export default function ConfigPage() {
     setConfig({ ...config, palabras: newPalabras });
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (config) {
       saveConfig(config);
+      await flushPush(); // subir al servidor antes de salir
       router.push("/jugar");
     }
   };
