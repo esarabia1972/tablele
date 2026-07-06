@@ -10,10 +10,20 @@ export type ConfigTablero = {
   palabras: PalabraDefault[];
 };
 
-export type PalabraStat = {
-  ok: number;
-  tot: number;
+// Un evento por cada intento de respuesta en los juegos
+export type Evento = {
+  t: number;        // timestamp (ms)
+  juego: string;    // wp | pw | listen | memo
+  palabra: string;  // palabra objetivo
+  elegida: string;  // qué eligió (para detectar confusiones)
+  ok: boolean;
+  intento: number;  // 1 = primer intento
+  ms: number;       // tiempo desde que apareció la ronda hasta este intento
+  ayuda: boolean;   // la opción correcta ya estaba brillando (hint)
 };
+
+const MAX_EVENTOS = 2000;
+const MAX_DIAS_USO = 90;
 
 export function getSessionData(): { username: string } | null {
   if (typeof window === "undefined") return null;
@@ -76,27 +86,60 @@ export function setStars(n: number) {
   schedulePush();
 }
 
-export function getStats(): Record<string, PalabraStat> {
+export function getEventos(): Evento[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const e = JSON.parse(localStorage.getItem('tablele.eventos') || '[]');
+    return Array.isArray(e) ? e : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+export function recordEvento(e: Evento) {
+  if (typeof window === "undefined" || !e.palabra) return;
+  const eventos = getEventos();
+  eventos.push(e);
+  localStorage.setItem('tablele.eventos', JSON.stringify(eventos.slice(-MAX_EVENTOS)));
+  schedulePush();
+}
+
+// --- Tiempo de uso (segundos por día, clave YYYY-MM-DD local) ---
+
+export function fechaLocal(d = new Date()): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export function getUso(): Record<string, number> {
   if (typeof window === "undefined") return {};
   try {
-    return JSON.parse(localStorage.getItem('tablele.stats') || '{}');
+    return JSON.parse(localStorage.getItem('tablele.uso') || '{}');
   } catch (e) {
     return {};
   }
 }
 
-export function recordStat(word: string, ok: boolean) {
-  if (typeof window === "undefined" || !word) return;
-  const stats = getStats();
-  stats[word] = stats[word] || { ok: 0, tot: 0 };
-  stats[word].tot++;
-  if (ok) stats[word].ok++;
-  localStorage.setItem('tablele.stats', JSON.stringify(stats));
+export function addUso(segundos: number) {
+  if (typeof window === "undefined") return;
+  const uso = getUso();
+  const hoy = fechaLocal();
+  uso[hoy] = (uso[hoy] || 0) + segundos;
+  // Conservar solo los últimos 90 días
+  const keys = Object.keys(uso).sort();
+  while (keys.length > MAX_DIAS_USO) {
+    delete uso[keys.shift()!];
+  }
+  localStorage.setItem('tablele.uso', JSON.stringify(uso));
   schedulePush();
 }
 
-export function clearStats() {
+export function clearMetricas() {
   if (typeof window === "undefined") return;
-  localStorage.removeItem('tablele.stats');
+  localStorage.removeItem('tablele.eventos');
+  localStorage.removeItem('tablele.uso');
+  localStorage.removeItem('tablele.stats'); // formato viejo
   schedulePush();
 }

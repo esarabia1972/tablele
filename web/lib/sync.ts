@@ -23,10 +23,14 @@ function collectPayload(username: string) {
     if (config) payload.config = JSON.parse(config);
   } catch {}
   payload.stars = parseInt(localStorage.getItem("tablele.stars") || "0") || 0;
+  // stats = { eventos: [...], uso: { "YYYY-MM-DD": segundos } }
   try {
-    payload.stats = JSON.parse(localStorage.getItem("tablele.stats") || "{}");
+    payload.stats = {
+      eventos: JSON.parse(localStorage.getItem("tablele.eventos") || "[]"),
+      uso: JSON.parse(localStorage.getItem("tablele.uso") || "{}"),
+    };
   } catch {
-    payload.stats = {};
+    payload.stats = { eventos: [], uso: {} };
   }
   return payload;
 }
@@ -43,7 +47,10 @@ export async function syncFromServer(username: string): Promise<void> {
       const { config, stars, stats } = json.data;
       if (config) localStorage.setItem("tablele.config", JSON.stringify(config));
       if (typeof stars === "number") localStorage.setItem("tablele.stars", String(stars));
-      if (stats) localStorage.setItem("tablele.stats", JSON.stringify(stats));
+      if (stats && typeof stats === "object") {
+        localStorage.setItem("tablele.eventos", JSON.stringify(stats.eventos ?? []));
+        localStorage.setItem("tablele.uso", JSON.stringify(stats.uso ?? {}));
+      }
     }
   } catch {
     // sin conexión o storage no configurado: seguimos con lo local

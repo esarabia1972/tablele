@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { getSessionData, getStars, setStars, getConfig } from "@/lib/storage";
+import { getSessionData, getStars, setStars, getConfig, addUso } from "@/lib/storage";
 import { syncFromServer } from "@/lib/sync";
 import TopBar from "@/components/TopBar";
 import GameEngine from "@/components/GameEngine";
@@ -28,6 +28,14 @@ export default function JugarPage() {
       setScore(getStars());
     })();
   }, [router]);
+
+  // Tiempo de uso: suma 15 s por tick mientras la app está visible
+  useEffect(() => {
+    const iv = setInterval(() => {
+      if (document.visibilityState === "visible") addUso(15);
+    }, 15000);
+    return () => clearInterval(iv);
+  }, []);
 
   const addStars = (n: number) => {
     const newScore = Math.min(score + n, 20);

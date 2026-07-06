@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { getConfig, recordStat } from "@/lib/storage";
+import { getConfig, recordEvento } from "@/lib/storage";
 import { PalabraDefault } from "@/data/palabras-default";
 import { speak, sndGood, sndBad, sndWin } from "@/lib/audio";
 
@@ -47,6 +47,9 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
   const [confetti, setConfetti] = useState<{ id: string, emoji: string, left: string, dur: string, delay: string }[]>([]);
   const [finished, setFinished] = useState(false);
   const [prizeWon, setPrizeWon] = useState(false);
+
+  // Momento en que apareció la ronda actual (para medir latencia de respuesta)
+  const roundStartRef = useRef<number>(Date.now());
 
   // Timers centralizados: se cancelan al salir del juego para que no
   // quede una palabra "hablando" después de volver al menú.
@@ -113,6 +116,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
     setButtonStates({});
     setFeedback("");
     setLocked(false);
+    roundStartRef.current = Date.now();
 
     if (mode === "show" || mode === "listen") {
       later(() => speak(target.palabra), 400);
@@ -153,8 +157,17 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
     if (locked) return;
     const target = seq[currentIndex];
     const ok = chosenOption.palabra === target.palabra;
-    
-    recordStat(target.palabra, ok);
+
+    recordEvento({
+      t: Date.now(),
+      juego: mode,
+      palabra: target.palabra,
+      elegida: chosenOption.palabra,
+      ok,
+      intento: errs + 1,
+      ms: Date.now() - roundStartRef.current,
+      ayuda: errs >= 2,
+    });
 
     if (ok) {
       setLocked(true);
@@ -210,7 +223,18 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
       const [idxA, idxB] = newOpen;
       const a = memoCards[idxA];
       const b = memoCards[idxB];
-      
+
+      recordEvento({
+        t: Date.now(),
+        juego: "memo",
+        palabra: a.id,
+        elegida: b.id,
+        ok: a.id === b.id && a.kind !== b.kind,
+        intento: 1,
+        ms: 0,
+        ayuda: false,
+      });
+
       if (a.id === b.id && a.kind !== b.kind) {
         setMemoCards(prev => {
           const newCards = [...prev];
