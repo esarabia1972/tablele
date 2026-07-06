@@ -4,8 +4,18 @@ import allowlist from "@/data/allowlist.json";
 // Persistencia server-side en Supabase (tabla: tablele_datos)
 // Env vars requeridas (en Vercel): SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 
-const SB_URL = process.env.SUPABASE_URL?.trim().replace(/\/+$/, "");
+// Acepta la URL con o sin path/barra final (ej: si pegaron el RESTful endpoint)
+const SB_URL = (() => {
+  const raw = process.env.SUPABASE_URL?.trim();
+  if (!raw) return undefined;
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return undefined;
+  }
+})();
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+const API_VERSION = 3; // para verificar qué versión está deployada
 const TABLE = "tablele_datos";
 
 function allowed(email: string): boolean {
@@ -41,7 +51,7 @@ export async function GET(request: Request) {
     if (!res.ok) {
       const detail = (await res.text()).slice(0, 300);
       return NextResponse.json(
-        { ok: false, sbStatus: res.status, sbError: detail },
+        { ok: false, v: API_VERSION, sbStatus: res.status, sbError: detail },
         { status: 500 }
       );
     }
