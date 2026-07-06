@@ -4,8 +4,8 @@ import allowlist from "@/data/allowlist.json";
 // Persistencia server-side en Supabase (tabla: tablele_datos)
 // Env vars requeridas (en Vercel): SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 
-const SB_URL = process.env.SUPABASE_URL;
-const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SB_URL = process.env.SUPABASE_URL?.trim().replace(/\/+$/, "");
+const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 const TABLE = "tablele_datos";
 
 function allowed(email: string): boolean {
