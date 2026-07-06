@@ -15,17 +15,20 @@ export type PalabraStat = {
   tot: number;
 };
 
-export function getSessionData(): { email: string; nombre: string } | null {
+export function getSessionData(): { username: string } | null {
   if (typeof window === "undefined") return null;
   try {
     const data = localStorage.getItem("tablele.session");
-    return data ? JSON.parse(data) : null;
+    const parsed = data ? JSON.parse(data) : null;
+    // Sesiones viejas (por email) quedan invalidadas
+    if (!parsed || typeof parsed.username !== "string") return null;
+    return parsed;
   } catch (e) {
     return null;
   }
 }
 
-export function setSessionData(data: { email: string; nombre: string }) {
+export function setSessionData(data: { username: string }) {
   if (typeof window === "undefined") return;
   localStorage.setItem("tablele.session", JSON.stringify(data));
 }

@@ -13,7 +13,7 @@ export default function InformePage() {
   useEffect(() => {
     const s = getSessionData();
     (async () => {
-      if (s) await syncFromServer(s.email);
+      if (s) await syncFromServer(s.username);
       setStats(getStats());
     })();
   }, []);

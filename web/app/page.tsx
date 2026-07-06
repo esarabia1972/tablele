@@ -6,7 +6,7 @@ import { getSessionData, setSessionData } from "@/lib/storage";
 import { syncFromServer } from "@/lib/sync";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -27,15 +27,15 @@ export default function LoginPage() {
       const res = await fetch("/api/acceso", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ username }),
       });
 
       const data = await res.json();
 
       if (data.ok) {
-        setSessionData({ email, nombre: data.nombre });
+        setSessionData({ username: data.username });
         // Baja el progreso guardado en el servidor (estrellas, config, informe)
-        await syncFromServer(email);
+        await syncFromServer(data.username);
         router.push("/jugar");
       } else {
         setError(data.message || "Error al verificar el acceso");
@@ -53,7 +53,7 @@ export default function LoginPage() {
         ¡A leer! 🚀
       </h1>
       <p className="text-brand-blue text-[1.15rem] text-center mb-5">
-        Ingresá con tu email para jugar
+        Escribí tu usuario para jugar
       </p>
 
       <form
@@ -62,16 +62,24 @@ export default function LoginPage() {
       >
         <div>
           <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="correo@ejemplo.com"
-            className="w-full text-xl p-4 rounded-xl border-2 border-brand-blue/20 outline-none focus:border-brand-blue bg-white"
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/\s/g, ""))}
+            placeholder="tu usuario"
+            className="w-full text-xl p-4 rounded-xl border-2 border-brand-blue/20 outline-none focus:border-brand-blue bg-white lowercase"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            minLength={3}
+            maxLength={20}
             required
             disabled={loading}
           />
+          <p className="text-sm text-gray-500 mt-2 text-center">
+            Si el usuario no existe, se crea automáticamente.
+          </p>
         </div>
-        
+
         {error && <div className="text-brand-pink font-bold text-center">{error}</div>}
 
         <button

@@ -7,17 +7,17 @@
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
 let flushInstalled = false;
 
-function getEmail(): string | null {
+function getUsername(): string | null {
   try {
     const s = localStorage.getItem("tablele.session");
-    return s ? (JSON.parse(s).email ?? null) : null;
+    return s ? (JSON.parse(s).username ?? null) : null;
   } catch {
     return null;
   }
 }
 
-function collectPayload(email: string) {
-  const payload: Record<string, unknown> = { email };
+function collectPayload(username: string) {
+  const payload: Record<string, unknown> = { username };
   try {
     const config = localStorage.getItem("tablele.config");
     if (config) payload.config = JSON.parse(config);
@@ -32,10 +32,10 @@ function collectPayload(email: string) {
 }
 
 /** Baja config/estrellas/stats del servidor y las vuelca a localStorage. */
-export async function syncFromServer(email: string): Promise<void> {
+export async function syncFromServer(username: string): Promise<void> {
   if (typeof window === "undefined") return;
   try {
-    const res = await fetch(`/api/datos?email=${encodeURIComponent(email)}`, {
+    const res = await fetch(`/api/datos?username=${encodeURIComponent(username)}`, {
       cache: "no-store",
     });
     const json = await res.json();
@@ -60,13 +60,13 @@ export function schedulePush() {
 
 async function pushNow() {
   pushTimer = null;
-  const email = getEmail();
-  if (!email) return;
+  const username = getUsername();
+  if (!username) return;
   try {
     await fetch("/api/datos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(collectPayload(email)),
+      body: JSON.stringify(collectPayload(username)),
       keepalive: true,
     });
   } catch {}
@@ -86,12 +86,12 @@ function flushBeacon() {
   if (!pushTimer) return;
   clearTimeout(pushTimer);
   pushTimer = null;
-  const email = getEmail();
-  if (!email) return;
+  const username = getUsername();
+  if (!username) return;
   try {
     navigator.sendBeacon(
       "/api/datos",
-      new Blob([JSON.stringify(collectPayload(email))], { type: "application/json" })
+      new Blob([JSON.stringify(collectPayload(username))], { type: "application/json" })
     );
   } catch {}
 }

@@ -9,7 +9,7 @@ import GameEngine from "@/components/GameEngine";
 
 export default function JugarPage() {
   const router = useRouter();
-  const [session, setSession] = useState<{ email: string; nombre: string } | null>(null);
+  const [session, setSession] = useState<{ username: string; nombre: string } | null>(null);
   const [score, setScore] = useState(0);
   const [view, setView] = useState<"menu" | "game">("menu");
   const [gameMode, setGameMode] = useState<"show" | "wp" | "pw" | "memo" | "listen">("show");
@@ -21,10 +21,10 @@ export default function JugarPage() {
       return;
     }
     (async () => {
-      await syncFromServer(s.email);
-      // El nombre configurado por el adulto tiene prioridad sobre el del login
-      const configNombre = getConfig().nombre?.trim();
-      setSession({ ...s, nombre: configNombre || s.nombre });
+      await syncFromServer(s.username);
+      // El nombre del niño/a se define en Configuración (puede estar vacío)
+      const nombre = getConfig().nombre?.trim() || "";
+      setSession({ username: s.username, nombre });
       setScore(getStars());
     })();
   }, [router]);
@@ -41,7 +41,6 @@ export default function JugarPage() {
     <>
       <TopBar
         score={score}
-        onBack={view === "game" ? () => setView("menu") : undefined}
         configTo={view === "menu" ? "/config" : undefined}
       />
       
@@ -88,14 +87,24 @@ export default function JugarPage() {
       )}
 
       {view === "game" && (
-        <GameEngine 
-          mode={gameMode} 
-          nombre={session.nombre} 
-          score={score}
-          onAddStars={addStars}
-          onBackToMenu={() => setView("menu")}
-          onPlayAgain={() => {}}
-        />
+        <>
+          <GameEngine
+            mode={gameMode}
+            nombre={session.nombre}
+            score={score}
+            onAddStars={addStars}
+            onBackToMenu={() => setView("menu")}
+            onPlayAgain={() => {}}
+          />
+          <div className="h-20 shrink-0 w-full" aria-hidden></div>
+          <button
+            onClick={() => setView("menu")}
+            className="fixed left-1/2 -translate-x-1/2 z-40 bg-white/90 text-brand-blue font-bold py-2 px-8 rounded-full shadow-[0_3px_0_rgba(0,0,0,0.15)] active:translate-y-1 transition-all text-lg"
+            style={{ bottom: "max(1rem, env(safe-area-inset-bottom))" }}
+          >
+            ⬅ Volver
+          </button>
+        </>
       )}
     </>
   );

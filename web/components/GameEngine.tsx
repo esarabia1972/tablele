@@ -8,6 +8,10 @@ import { speak, sndGood, sndBad, sndWin } from "@/lib/audio";
 const ROUNDS = 12;
 const GOAL = 20;
 const PRAISE = ['¡muy bien, manu!', '¡genial!', '¡excelente!', '¡sos un campeón!', '¡bravo!', '¡súper!'];
+
+// Si no hay nombre configurado, los mensajes salen sin él
+const withName = (msg: string, nombre: string) =>
+  nombre ? msg.replace('manu', nombre.toLowerCase()) : msg.replace(', manu', '');
 const RETRY = ['¡casi! probá otra vez', 'mmm... ¡intentá de nuevo!', '¡vos podés! otra vez'];
 
 const shuffle = <T,>(a: T[]): T[] => {
@@ -119,7 +123,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
     setFinished(true);
     sndWin();
     spawnConfetti(40);
-    speak(`¡Felicitaciones, ${nombre}! ¡Terminaste el juego!`);
+    speak(`¡Felicitaciones${nombre ? `, ${nombre}` : ""}! ¡Terminaste el juego!`);
   };
 
   const triggerPrize = () => {
@@ -129,7 +133,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
     spawnConfetti(40);
     later(() => spawnConfetti(40), 800);
     later(() => spawnConfetti(40), 1600);
-    speak(`¡Veinte estrellas! ¡Te ganaste un premio, ${nombre}!`);
+    speak(`¡Veinte estrellas! ¡Te ganaste un premio${nombre ? `, ${nombre}` : ""}!`);
   };
 
   const spawnConfetti = (count: number) => {
@@ -157,10 +161,10 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
       setButtonStates(prev => ({ ...prev, [chosenOption.palabra]: "correct" }));
       sndGood();
       
-      const praiseMsg = rand(PRAISE).replace('manu', nombre);
+      const praiseMsg = withName(rand(PRAISE), nombre);
       setFeedback(`⭐ ${praiseMsg}`);
       speak(praiseMsg);
-      
+
       onAddStars(1);
       if (score + 1 >= GOAL) {
         later(triggerPrize, 1300);
@@ -216,7 +220,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
         });
         sndGood();
         onAddStars(1);
-        const praiseMsg = rand(PRAISE).replace('manu', nombre);
+        const praiseMsg = withName(rand(PRAISE), nombre);
         setFeedback(`⭐ ${praiseMsg}`);
         speak(praiseMsg);
         
@@ -252,7 +256,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
         <h1 className="text-brand-dark text-[2.2rem] mb-2 drop-shadow-[2px_2px_0_#fff] font-bold">¡20 estrellas!</h1>
         <div className="text-[3rem] my-3">⭐⭐⭐⭐⭐</div>
         <div className="text-brand-blue text-[1.5rem] mb-5">
-          <b>¡te ganaste un premio, {nombre.toLowerCase()}!</b><br/>andá a buscarlo 😄
+          <b>¡te ganaste un premio{nombre ? `, ${nombre.toLowerCase()}` : ""}!</b><br/>andá a buscarlo 😄
         </div>
         <button className="bg-brand-green text-white border-none rounded-[22px] p-5 text-[1.35rem] font-bold cursor-pointer shadow-[0_5px_0_rgba(0,0,0,0.18)] active:translate-y-1 active:shadow-none w-full max-w-[300px]" onClick={() => { onAddStars(-GOAL); onBackToMenu(); }}>
           🔁 empezar otra vez
@@ -268,7 +272,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
     return (
       <div className="flex-1 flex flex-col items-center justify-center w-full max-w-[520px] text-center mt-8">
         <div className="text-[5rem] animate-bounce-short">🏆</div>
-        <h1 className="text-brand-dark text-[2.2rem] mb-2 drop-shadow-[2px_2px_0_#fff] font-bold">¡lo lograste, {nombre.toLowerCase()}!</h1>
+        <h1 className="text-brand-dark text-[2.2rem] mb-2 drop-shadow-[2px_2px_0_#fff] font-bold">¡lo lograste{nombre ? `, ${nombre.toLowerCase()}` : ""}!</h1>
         <div className="text-[3rem] my-3">⭐⭐⭐</div>
         <div className="text-brand-blue text-[1.15rem] mb-5">estrellas: <b>{score} / {GOAL}</b></div>
         <div className="flex flex-col gap-4 w-full max-w-[300px]">

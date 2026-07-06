@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import allowlist from "@/data/allowlist.json";
 
-// Persistencia server-side en Supabase (tabla: tablele_datos)
+// Persistencia server-side en Supabase (tabla: tablele_datos, clave: username)
 // Env vars requeridas (en Vercel): SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 
 // Acepta la URL con o sin path/barra final (ej: si pegaron el RESTful endpoint)
@@ -15,14 +14,9 @@ const SB_URL = (() => {
   }
 })();
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-const API_VERSION = 3; // para verificar qué versión está deployada
 const TABLE = "tablele_datos";
-
-function allowed(email: string): boolean {
-  return allowlist.some(
-    (entry: { email: string }) => entry.email.toLowerCase() === email
-  );
-}
+const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
+const API_VERSION = 4; // para verificar qué versión está deployada
 
 function sbHeaders(): Record<string, string> {
   return {
@@ -34,9 +28,9 @@ function sbHeaders(): Record<string, string> {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const email = (searchParams.get("email") || "").trim().toLowerCase();
+  const username = (searchParams.get("username") || "").trim().toLowerCase();
 
-  if (!email || !allowed(email)) {
+  if (!USERNAME_RE.test(username)) {
     return NextResponse.json({ ok: false }, { status: 403 });
   }
   if (!SB_URL || !SB_KEY) {
@@ -45,7 +39,7 @@ export async function GET(request: Request) {
 
   try {
     const res = await fetch(
-      `${SB_URL}/rest/v1/${TABLE}?email=eq.${encodeURIComponent(email)}&select=config,stars,stats`,
+      `${SB_URL}/rest/v1/${TABLE}?username=eq.${encodeURIComponent(username)}&select=config,stars,stats`,
       { headers: sbHeaders(), cache: "no-store" }
     );
     if (!res.ok) {
@@ -68,9 +62,9 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const email = (body.email || "").trim().toLowerCase();
+    const username = String(body.username || "").trim().toLowerCase();
 
-    if (!email || !allowed(email)) {
+    if (!USERNAME_RE.test(username)) {
       return NextResponse.json({ ok: false }, { status: 403 });
     }
     if (!SB_URL || !SB_KEY) {
@@ -78,7 +72,7 @@ export async function POST(request: Request) {
     }
 
     const row: Record<string, unknown> = {
-      email,
+      username,
       updated_at: new Date().toISOString(),
     };
     if (body.config !== undefined && body.config !== null) row.config = body.config;
@@ -87,7 +81,7 @@ export async function POST(request: Request) {
     }
     if (body.stats !== undefined && body.stats !== null) row.stats = body.stats;
 
-    const res = await fetch(`${SB_URL}/rest/v1/${TABLE}?on_conflict=email`, {
+    const res = await fetch(`${SB_URL}/rest/v1/${TABLE}?on_conflict=username`, {
       method: "POST",
       headers: {
         ...sbHeaders(),

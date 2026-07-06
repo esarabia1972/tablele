@@ -14,7 +14,7 @@ export default function ConfigPage() {
   useEffect(() => {
     const s = getSessionData();
     (async () => {
-      if (s) await syncFromServer(s.email);
+      if (s) await syncFromServer(s.username);
       setConfig(getConfig());
     })();
   }, []);
@@ -104,7 +104,7 @@ export default function ConfigPage() {
               type="text"
               value={config.nombre ?? ""}
               onChange={(e) => setConfig({ ...config, nombre: e.target.value })}
-              placeholder="Manu"
+              placeholder="escribí el nombre"
               className="w-full p-3 rounded-xl border-2 border-brand-blue/20 outline-none focus:border-brand-blue bg-white text-brand-dark font-bold"
             />
             <p className="text-sm text-gray-500 mt-1">Se usa en los mensajes de aliento de los juegos.</p>
