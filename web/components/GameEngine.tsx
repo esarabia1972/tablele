@@ -294,7 +294,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
     show: "👀 conocer las palabras",
     wp: "📖 leo y busco el dibujo",
     pw: "🔍 miro y busco la palabra",
-    memo: "🃏 memotest — uní la palabra con su dibujo",
+    memo: "🃏 buscá la palabra y su dibujo",
     listen: "🦜 el loro dice..."
   };
 
@@ -302,7 +302,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
 
   const header = (
     <div className="w-full flex flex-col items-center mb-[14px]">
-      <div className="text-brand-blue text-[1.15rem] text-center mb-1">
+      <div className="text-brand-blue text-[clamp(0.95rem,3.6vw,1.15rem)] text-center mb-1 whitespace-nowrap">
         {titleMap[mode]} {mode !== "memo" && `— ${currentIndex + 1} de ${ROUNDS}`}
       </div>
       {mode !== "memo" && (
@@ -419,7 +419,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
       {/* Mode Memo: Memotest */}
       {mode === "memo" && (
         <>
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-[10px] w-full max-w-[560px]">
+          <div className="grid grid-cols-4 gap-[8px] w-full max-w-[480px]">
             {memoCards.map((c, idx) => {
               const isOpen = memoOpen.includes(idx);
               const isMatched = memoMatched > 0 && !memoOpen.includes(idx) && false; // We track match via class? Wait, we can track matched indices!
@@ -428,16 +428,16 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
               // Actually we need to track matched pairs or indices.
               // Let's add matched property to the card object itself in memoCards array!
               return (
-                <div key={idx} className={`aspect-[3/3.4] [perspective:600px] cursor-pointer ${isOpen || c.matched ? '[&>div]:[transform:rotateY(180deg)]' : ''}`} onClick={() => handleMemoClick(idx)}>
+                <div key={idx} className={`aspect-[3/3.2] [perspective:600px] cursor-pointer ${isOpen || c.matched ? '[&>div]:[transform:rotateY(180deg)]' : ''}`} onClick={() => handleMemoClick(idx)}>
                   <div className="w-full h-full relative [transform-style:preserve-3d] transition-transform duration-400">
                     <div className="absolute inset-0 [backface-visibility:hidden] rounded-[16px] flex items-center justify-center text-center shadow-[0_4px_0_rgba(0,0,0,0.14)] p-1 bg-gradient-to-br from-[#4d9de0] to-[#7ec8ff] text-[2rem]">
                       ❓
                     </div>
                     <div className={`absolute inset-0 [backface-visibility:hidden] rounded-[16px] flex items-center justify-center text-center shadow-[0_4px_0_rgba(0,0,0,0.14)] p-1 [transform:rotateY(180deg)] ${c.matched ? 'bg-[#d2f5df] outline outline-3 outline-[#3dbf6e]' : 'bg-white'}`}>
                       {c.kind === 'emoji' ? (
-                        <span className="text-[2.6rem]">{c.show}</span>
+                        <span className="text-[clamp(1.8rem,7vw,2.4rem)]">{c.show}</span>
                       ) : (
-                        <span className="text-[clamp(0.95rem,3.4vw,1.25rem)] font-bold text-brand-pink tracking-[1px]">{c.show}</span>
+                        <span className="text-[clamp(0.8rem,3vw,1.15rem)] font-bold text-brand-pink tracking-[1px] break-all">{c.show}</span>
                       )}
                     </div>
                   </div>
