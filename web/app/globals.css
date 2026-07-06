@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Comic Sans MS", "Chalkboard SE", "Segoe UI", sans-serif;
+  --color-brand-blue: #2b6cb0;
+  --color-brand-dark: #1a4a7a;
+  --color-brand-pink: #d63384;
+  --color-brand-green: #3dbf6e;
+  --color-brand-orange: #ff8a3d;
+  --color-brand-purple: #a06df0;
+  
+  --animate-pop: pop 0.45s;
+  --animate-shake: shake 0.45s;
+  --animate-bounce-short: bounce-short 1s infinite alternate;
+  --animate-glow: glow 0.9s infinite alternate;
+  --animate-fall: fall linear forwards;
+}
+
+@keyframes pop {
+  0%, 100% { transform: scale(1); }
+  40% { transform: scale(1.15); }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-6px); }
+  80% { transform: translateX(6px); }
+}
+
+@keyframes bounce-short {
+  to { transform: translateY(-18px); }
+}
+
+@keyframes glow {
+  from { box-shadow: 0 5px 0 rgba(0,0,0,0.14), 0 0 6px 2px #ffd23f; transform: scale(1); }
+  to { box-shadow: 0 5px 0 rgba(0,0,0,0.14), 0 0 26px 10px #ffd23f; transform: scale(1.04); }
+}
+
+@keyframes fall {
+  to { transform: translateY(110vh) rotate(720deg); }
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: linear-gradient(160deg, #7ec8ff 0%, #b9e6ff 45%, #fff3c4 100%);
+  background-attachment: fixed;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+  overflow-x: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
