@@ -290,6 +290,8 @@ export default function ConfigPage() {
         >
           Salir (cambiar usuario)
         </button>
+
+        <p className="text-center text-gray-400 text-xs mt-4">Tablele v0.9.1</p>
       </div>
     </>
   );
