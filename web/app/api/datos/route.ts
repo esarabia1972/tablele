@@ -38,7 +38,13 @@ export async function GET(request: Request) {
       `${SB_URL}/rest/v1/${TABLE}?email=eq.${encodeURIComponent(email)}&select=config,stars,stats`,
       { headers: sbHeaders(), cache: "no-store" }
     );
-    if (!res.ok) return NextResponse.json({ ok: false }, { status: 500 });
+    if (!res.ok) {
+      const detail = (await res.text()).slice(0, 300);
+      return NextResponse.json(
+        { ok: false, sbStatus: res.status, sbError: detail },
+        { status: 500 }
+      );
+    }
     const rows = await res.json();
     return NextResponse.json({
       ok: true,
@@ -80,7 +86,11 @@ export async function POST(request: Request) {
       body: JSON.stringify([row]),
     });
 
-    return NextResponse.json({ ok: res.ok });
+    if (!res.ok) {
+      const detail = (await res.text()).slice(0, 300);
+      return NextResponse.json({ ok: false, sbStatus: res.status, sbError: detail });
+    }
+    return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ ok: false }, { status: 500 });
   }
