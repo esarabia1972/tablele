@@ -25,7 +25,10 @@ export default function TopBar({ score, onBack, backTo, configTo }: TopBarProps)
 
   return (
     <>
-      <div className="w-full max-w-[1000px] flex flex-col pt-4 pb-1 px-4 gap-1">
+      <div
+        className="w-full max-w-[1000px] flex flex-col pb-1 px-4 gap-1"
+        style={{ paddingTop: "max(1.25rem, env(safe-area-inset-top))" }}
+      >
         {score !== undefined && (
           <div className="grid grid-cols-10 gap-x-[6px] gap-y-[4px] w-fit mx-auto">
             {Array.from({ length: 20 }).map((_, i) => (
@@ -52,7 +55,8 @@ export default function TopBar({ score, onBack, backTo, configTo }: TopBarProps)
         <Link
           href={configTo}
           aria-label="Configuración"
-          className="fixed bottom-4 right-4 z-40 text-[1.7rem] opacity-50 hover:opacity-100 active:translate-y-1 transition-all p-2"
+          className="fixed right-4 z-40 text-[1.7rem] opacity-50 hover:opacity-100 active:translate-y-1 transition-all p-2"
+          style={{ bottom: "max(1rem, env(safe-area-inset-bottom))" }}
         >
           ⚙️
         </Link>
