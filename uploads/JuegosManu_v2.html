@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>¡A leer, Manu! 🚀</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; }
+  body {
+    font-family: 'Comic Sans MS', 'Chalkboard SE', 'Segoe UI', sans-serif;
+    background: linear-gradient(160deg, #7ec8ff 0%, #b9e6ff 45%, #fff3c4 100%);
+    display:flex; flex-direction:column; align-items:center;
+    min-height:100vh; overflow-x:hidden; user-select:none;
+  }
+  .topbar {
+    width:100%; max-width:760px; display:flex; align-items:center;
+    justify-content:space-between; padding:12px 16px; gap:8px;
+  }
+  .pill {
+    background:#fff; border-radius:999px; padding:8px 16px; font-size:1.15rem;
+    font-weight:bold; color:#2b6cb0; box-shadow:0 3px 0 rgba(0,0,0,.12);
+    display:flex; align-items:center; gap:6px;
+  }
+  .btn-small {
+    background:#fff; border:none; border-radius:999px; padding:8px 14px;
+    font-size:1.05rem; font-weight:bold; color:#2b6cb0; cursor:pointer;
+    box-shadow:0 3px 0 rgba(0,0,0,.12); font-family:inherit;
+  }
+  .btn-small:active { transform:translateY(2px); box-shadow:none; }
+  #stage { width:100%; max-width:760px; padding:8px 16px 24px; flex:1;
+    display:flex; flex-direction:column; align-items:center; }
+  h1 { color:#1a4a7a; text-shadow:2px 2px 0 #fff; font-size:2.2rem; text-align:center; margin:10px 0; }
+  .subtitle { color:#2b6cb0; font-size:1.15rem; text-align:center; margin-bottom:20px; }
+  .menu { display:flex; flex-direction:column; gap:16px; width:100%; max-width:420px; margin-top:10px; }
+  .menu button {
+    border:none; border-radius:22px; padding:20px; font-size:1.35rem; font-weight:bold;
+    cursor:pointer; font-family:inherit; color:#fff; box-shadow:0 5px 0 rgba(0,0,0,.18);
+    display:flex; align-items:center; gap:14px; justify-content:center;
+    transition: transform .1s;
+  }
+  .menu button:active { transform:translateY(4px); box-shadow:none; }
+  .m1 { background:#ff8a3d; } .m2 { background:#3dbf6e; } .m3 { background:#a06df0; } .m4 { background:#e0508e; }
+  .menu.icons { display:grid; grid-template-columns:1fr 1fr; gap:22px; max-width:520px; width:100%; }
+  .menu.icons button { font-size:6rem; padding:44px 0; line-height:1; border-radius:32px; }
+  .m5 { background:#4d9de0; }
+  .opt.hint { animation:glow .9s infinite alternate; }
+  @keyframes glow {
+    from { box-shadow:0 5px 0 rgba(0,0,0,.14), 0 0 6px 2px #ffd23f; }
+    to   { box-shadow:0 5px 0 rgba(0,0,0,.14), 0 0 26px 10px #ffd23f; transform:scale(1.04); }
+  }
+  .menu .icon { font-size:2rem; }
+
+  .progress-track {
+    width:100%; max-width:520px; height:22px; background:#ffffffaa;
+    border-radius:999px; margin:6px 0 14px; overflow:hidden;
+  }
+  .progress-fill {
+    height:100%; width:0%; border-radius:999px;
+    background:linear-gradient(90deg,#ffd23f,#ff8a3d); transition:width .4s;
+  }
+  .prompt-card {
+    background:#fff; border-radius:26px; padding:22px 30px; text-align:center;
+    box-shadow:0 6px 0 rgba(0,0,0,.12); margin-bottom:22px; min-width:min(90%,420px);
+    cursor:pointer;
+  }
+  .prompt-word { font-size:clamp(2.6rem, 9vw, 4rem); font-weight:bold; color:#d63384; letter-spacing:2px; }
+  .prompt-emoji { font-size:clamp(4rem, 16vw, 6.5rem); line-height:1.1; }
+  .hear { font-size:1rem; color:#888; margin-top:6px; }
+  .options { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; width:100%; max-width:560px; }
+  .options.words { grid-template-columns:1fr; max-width:420px; }
+  .opt {
+    background:#fff; border:none; border-radius:22px; padding:16px 8px;
+    font-size:3.4rem; cursor:pointer; box-shadow:0 5px 0 rgba(0,0,0,.14);
+    transition:transform .1s; font-family:inherit;
+  }
+  .opt.word-opt { font-size:clamp(1.7rem, 6vw, 2.3rem); font-weight:bold; color:#1a4a7a; letter-spacing:2px; padding:18px; }
+  .opt:active { transform:translateY(3px); box-shadow:none; }
+  .opt.correct { background:#3dbf6e; color:#fff; animation:pop .45s; }
+  .opt.wrong { animation:shake .45s; background:#ffe0e0; }
+  .opt.dim { opacity:.35; pointer-events:none; }
+  @keyframes pop { 40% { transform:scale(1.15);} }
+  @keyframes shake { 20%{transform:translateX(-8px);} 40%{transform:translateX(8px);} 60%{transform:translateX(-6px);} 80%{transform:translateX(6px);} }
+  .feedback { min-height:2.2rem; font-size:1.4rem; font-weight:bold; color:#1a4a7a; margin-top:16px; text-align:center; }
+
+  /* Memotest */
+  .memo-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; width:100%; max-width:560px; }
+  .card { aspect-ratio:3/3.4; perspective:600px; cursor:pointer; }
+  .card-inner { width:100%; height:100%; position:relative; transform-style:preserve-3d; transition:transform .4s; }
+  .card.flipped .card-inner { transform:rotateY(180deg); }
+  .face {
+    position:absolute; inset:0; backface-visibility:hidden; border-radius:16px;
+    display:flex; align-items:center; justify-content:center; text-align:center;
+    box-shadow:0 4px 0 rgba(0,0,0,.14); padding:4px;
+  }
+  .face.back { background:linear-gradient(135deg,#4d9de0,#7ec8ff); font-size:2rem; }
+  .face.front { background:#fff; transform:rotateY(180deg); }
+  .face.front.emoji { font-size:2.6rem; }
+  .face.front.word { font-size:clamp(.95rem,3.4vw,1.25rem); font-weight:bold; color:#d63384; letter-spacing:1px; }
+  .card.matched .face.front { background:#d2f5df; outline:3px solid #3dbf6e; }
+
+  /* Celebration */
+  .celebrate { text-align:center; margin-top:30px; }
+  .celebrate .big { font-size:5rem; animation:bounce 1s infinite alternate; }
+  @keyframes bounce { to { transform:translateY(-18px);} }
+  .stars { font-size:3rem; margin:12px 0; }
+  .confetti { position:fixed; top:-20px; font-size:1.6rem; animation:fall linear forwards; z-index:50; pointer-events:none; }
+  @keyframes fall { to { transform:translateY(110vh) rotate(720deg); } }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <button class="btn-small" id="homeBtn" title="Menú">🏠</button>
+    <div class="pill">⭐ <span id="score">0</span> / 20</div>
+    <button class="btn-small" id="statsBtn" title="Informe">📊</button>
+  </div>
+  <div id="stage"></div>
+
+<script>
+const WORDS = [
+  { w:'auto',     e:'🚗' },
+  { w:'bebé',     e:'👶' },
+  { w:'casa',     e:'🏠' },
+  { w:'dedo',     e:'☝️' },
+  { w:'elefante', e:'🐘' },
+  { w:'fideos',   e:'🍝' },
+  { w:'gato',     e:'🐱' },
+  { w:'helado',   e:'🍦' },
+  { w:'india',    e:'🐶' },
+  { w:'jugo',     e:'🧃' },
+  { w:'kiosco',   e:'🏪' },
+  { w:'luna',     e:'🌙' },
+  { w:'manuel',   e:'🙋‍♂️' },
+  { w:'nene',     e:'🧒' },
+  { w:'oso',      e:'🐻' },
+  { w:'papá',     e:'👨' },
+  { w:'queso',    e:'🧀' },
+  { w:'ratón',    e:'🐭' },
+  { w:'sol',      e:'☀️' },
+  { w:'tractor',  e:'🚜' },
+  { w:'uva',      e:'🍇' },
+  { w:'yogur',    e:'🥣' },
+  { w:'zapato',   e:'👟' },
+];
+const ROUNDS = 12;      // 12 palabras al azar por juego
+const GOAL = 20;        // estrellas para ganar el premio
+const PRAISE = ['¡muy bien, manu!','¡genial!','¡excelente!','¡sos un campeón!','¡bravo!','¡súper!'];
+const RETRY  = ['¡casi! probá otra vez','mmm... ¡intentá de nuevo!','¡vos podés! otra vez'];
+
+let score = 0, prizeWon = false;
+try { score = Math.min(parseInt(localStorage.getItem('manuStars'))||0, GOAL); } catch(e){}
+
+const stage = document.getElementById('stage');
+const fmt = w => w; // siempre minúsculas con acentos
+const shuffle = a => a.map(x=>[Math.random(),x]).sort((p,q)=>p[0]-q[0]).map(p=>p[1]);
+const rand = a => a[Math.floor(Math.random()*a.length)];
+
+/* ---------- audio ---------- */
+let actx;
+function tone(freq, t0, dur, type='sine', vol=.25){
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(vol, actx.currentTime + t0);
+  g.gain.exponentialRampToValueAtTime(.001, actx.currentTime + t0 + dur);
+  o.connect(g); g.connect(actx.destination);
+  o.start(actx.currentTime + t0); o.stop(actx.currentTime + t0 + dur);
+}
+function ensureAudio(){ if(!actx) actx = new (window.AudioContext||window.webkitAudioContext)(); }
+function sndGood(){ ensureAudio(); tone(523,0,.15); tone(659,.12,.15); tone(784,.24,.3); }
+function sndBad(){ ensureAudio(); tone(220,0,.3,'triangle',.15); }
+function sndWin(){ ensureAudio(); [523,659,784,1047,784,1047].forEach((f,i)=>tone(f,i*.14,.25)); }
+/* --- selección de voz: puntúa las voces en español y elige la más natural --- */
+const MALE_RE = /diego|jorge|juan|carlos|andr[eé]s|enrique|ra[uú]l|pablo|dami[aá]n|mat[ií]as|tom[aá]s|gonzalo|[aá]lvaro|arnau|reed|rocko|eddy|grandpa|abuelo|alonso|gerardo|hombre|masculin/;
+function spanishVoices(){
+  const all = speechSynthesis.getVoices().filter(v=>v.lang.toLowerCase().startsWith('es'));
+  // FORZAR voz de hombre: si hay voces masculinas conocidas, usar SOLO esas
+  const males = all.filter(v=>MALE_RE.test(v.name.toLowerCase()) && !/female|mujer|femenin/.test(v.name.toLowerCase()));
+  return males.length ? males : all;
+}
+function scoreVoice(v){
+  const n = v.name.toLowerCase(), l = v.lang.toLowerCase();
+  let s = 0;
+  // voces de alta calidad conocidas
+  if (n.includes('google')) s += 50;
+  if (n.includes('natural') || n.includes('neural') || n.includes('premium') || n.includes('enhanced') || n.includes('mejorada')) s += 60;
+  // preferir voces masculinas
+  if (/diego|jorge|juan|carlos|andr[eé]s|enrique|ra[uú]l|pablo|dami[aá]n|mat[ií]as|tom[aá]s|gonzalo|alvaro|álvaro|arnau|liam|reed|rocko|eddy|grandpa|alonso|gerardo/.test(n)) s += 45;
+  if (/male|hombre|masculin/.test(n) && !/female|mujer|femenin/.test(n)) s += 45;
+  // demotar voces femeninas conocidas
+  if (/m[oó]nica|paulina|luciana|isabela|angelica|sabina|helena|elvira|dalia|camila|marisol|soledad|ximena|larissa|female|mujer|femenin|flo|sandy|shelley|grandma/.test(n)) s -= 40;
+  if (n.includes('siri')) s += 20;
+  // acento rioplatense primero
+  if (l==='es-ar') s += 25;
+  else if (l==='es-mx' || l==='es-us' || l==='es-419') s += 15;
+  // penalizar voces robóticas típicas
+  if (n.includes('espeak') || n.includes('compact') || n.includes('novelty')) s -= 100;
+  if (v.localService === false) s += 10; // voces en la nube suelen sonar mejor
+  return s;
+}
+function bestVoice(){
+  const vs = spanishVoices();
+  if (!vs.length) return null;
+  return vs.sort((a,b)=>scoreVoice(b)-scoreVoice(a))[0];
+}
+function speak(text){
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    const v = bestVoice();
+    if (v){ u.voice = v; u.lang = v.lang; } else { u.lang = 'es-AR'; }
+    u.rate = .85; u.pitch = 1.05;
+    speechSynthesis.speak(u);
+  } catch(e){}
+}
+// las voces cargan de forma asíncrona en algunos navegadores
+if ('speechSynthesis' in window){
+  speechSynthesis.getVoices();
+  speechSynthesis.onvoiceschanged = ()=>speechSynthesis.getVoices();
+}
+
+/* ---------- HUD / estrellas ---------- */
+function setScore(n){
+  score=n; document.getElementById('score').textContent=n;
+  try { localStorage.setItem('manuStars', n); } catch(e){}
+}
+function addStars(n){
+  setScore(Math.min(score+n, GOAL));
+  if (score < GOAL && score % 10 === 0) confetti();
+  if (score >= GOAL && !prizeWon){ prizeWon = true; setTimeout(prize, 1300); }
+}
+function prize(){
+  confetti(); setTimeout(confetti, 800); setTimeout(confetti, 1600);
+  sndWin();
+  speak('¡Veinte estrellas! ¡Te ganaste un premio, Manu!');
+  stage.innerHTML = `
+    <div class="celebrate">
+      <div class="big">🎁</div>
+      <h1>¡20 estrellas!</h1>
+      <div class="stars">⭐⭐⭐⭐⭐</div>
+      <div class="subtitle" style="font-size:1.5rem"><b>¡te ganaste un premio, manu!</b><br>andá a buscarlo 😄</div>
+      <div class="menu" style="margin-top:20px">
+        <button class="m2" onclick="resetStars()">🔁 empezar otra vez</button>
+      </div>
+    </div>`;
+}
+function resetStars(){ prizeWon = false; setScore(0); menu(); }
+document.getElementById('homeBtn').onclick = menu;
+
+/* ---------- confetti ---------- */
+function confetti(){
+  const em = ['🎉','⭐','🎊','✨','🌟'];
+  for(let i=0;i<40;i++){
+    const d = document.createElement('div');
+    d.className='confetti'; d.textContent=rand(em);
+    d.style.left = Math.random()*100+'vw';
+    d.style.animationDuration = (2+Math.random()*2)+'s';
+    d.style.animationDelay = (Math.random()*.8)+'s';
+    document.body.appendChild(d);
+    setTimeout(()=>d.remove(), 5000);
+  }
+}
+
+/* ---------- menu ---------- */
+function menu(){
+  stage.innerHTML = `
+    <div class="menu icons" style="margin-top:4vh">
+      <button class="m5" style="grid-column:1/-1; font-size:5rem; padding:30px 0" onclick="startShow()">👀</button>
+      <button class="m1" onclick="startWordToPic()">📖</button>
+      <button class="m2" onclick="startPicToWord()">🔍</button>
+      <button class="m3" onclick="startMemo()">🃏</button>
+      <button class="m4" onclick="startListen()">🦜</button>
+    </div>`;
+}
+
+/* ---------- rounds engine (modes 1 & 2) ---------- */
+function makeRound(state, render){
+  if (prizeWon) return;
+  if (state.i >= ROUNDS) return celebrate(state);
+  const target = state.seq[state.i];
+  const others = shuffle(WORDS.filter(x=>x.w!==target.w)).slice(0,2);
+  const opts = shuffle([target, ...others]);
+  state.errs = 0; state.tgt = target.w;
+  render(target, opts, state);
+}
+
+function header(state, title){
+  return `
+    <div class="subtitle" style="margin-bottom:4px">${title} — ${state.i+1} de ${ROUNDS}</div>
+    <div class="progress-track"><div class="progress-fill" style="width:${state.i/ROUNDS*100}%"></div></div>`;
+}
+
+function handleAnswer(btn, ok, state, next){
+  const fb = document.getElementById('fb');
+  recStat(state.tgt, ok);
+  if (ok){
+    btn.classList.add('correct');
+    sndGood(); confettiSmall(btn);
+    const msg = rand(PRAISE);
+    fb.textContent = '⭐ ' + msg;
+    speak(msg);
+    addStars(1);
+    document.querySelectorAll('.opt').forEach(o=>o.style.pointerEvents='none');
+    state.i++;
+    setTimeout(next, 1400);
+  } else {
+    btn.classList.add('wrong');
+    sndBad();
+    fb.textContent = '💪 ' + rand(RETRY);
+    setTimeout(()=>{ btn.classList.remove('wrong'); btn.classList.add('dim'); }, 500);
+    state.errs++;
+    // aprendizaje sin error: al segundo error, la respuesta correcta brilla
+    if (state.errs >= 2){
+      const good = document.querySelector('.opt[data-ok="1"]');
+      if (good) good.classList.add('hint');
+    }
+  }
+}
+
+/* ---------- registro de aciertos por palabra (informe) ---------- */
+function recStat(w, ok){
+  if (!w) return;
+  try {
+    const st = JSON.parse(localStorage.getItem('manuStats')) || {};
+    st[w] = st[w] || { ok:0, tot:0 };
+    st[w].tot++; if (ok) st[w].ok++;
+    localStorage.setItem('manuStats', JSON.stringify(st));
+  } catch(e){}
+}
+function statsScreen(){
+  let st = {};
+  try { st = JSON.parse(localStorage.getItem('manuStats')) || {}; } catch(e){}
+  const rows = Object.entries(st)
+    .sort((a,b)=>(a[1].ok/a[1].tot)-(b[1].ok/b[1].tot))
+    .map(([w,s])=>{
+      const p = Math.round(s.ok/s.tot*100);
+      const col = p>=80 ? '#3dbf6e' : p>=50 ? '#ff8a3d' : '#d63384';
+      return `<div style="background:#fff;border-radius:14px;padding:10px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 3px 0 rgba(0,0,0,.1)">
+        <b style="color:#1a4a7a;font-size:1.15rem">${w}</b>
+        <span style="font-weight:bold;color:${col}">${s.ok} / ${s.tot} &nbsp;(${p}%)</span>
+      </div>`;
+    }).join('');
+  stage.innerHTML = `
+    <h1 style="font-size:1.7rem">📊 informe</h1>
+    <div class="subtitle">aciertos por palabra (de peor a mejor)</div>
+    <div style="width:100%;max-width:440px">${rows || '<div class="subtitle">todavía no hay datos</div>'}</div>
+    <div class="menu" style="margin-top:16px">
+      <button class="m4" id="clearBtn" style="font-size:1.05rem;padding:14px;position:relative;overflow:hidden">
+        <div id="clearFill" style="position:absolute;top:0;left:0;bottom:0;width:0%;background:rgba(255,255,255,.45)"></div>
+        <span style="position:relative;z-index:1">borrar historial</span>
+      </button>
+    </div>`;
+  // borrar sólo manteniendo apretado 3 segundos (se va llenando de a poco)
+  const btn = document.getElementById('clearBtn');
+  const fill = document.getElementById('clearFill');
+  let timer = null;
+  const start = e => {
+    e.preventDefault();
+    if (timer) return;
+    fill.style.transition = 'width 2s linear';
+    fill.style.width = '100%';
+    timer = setTimeout(()=>{ timer=null; clearStats(); }, 2000);
+  };
+  const cancel = () => {
+    if (timer){ clearTimeout(timer); timer=null; }
+    fill.style.transition = 'none';
+    fill.style.width = '0%';
+  };
+  btn.addEventListener('pointerdown', start);
+  ['pointerup','pointerleave','pointercancel'].forEach(ev=>btn.addEventListener(ev, cancel));
+  btn.addEventListener('contextmenu', e=>e.preventDefault()); // evita el menú de "toque largo" en tablets
+}
+function clearStats(){
+  try { localStorage.removeItem('manuStats'); } catch(e){}
+  statsScreen();
+}
+document.getElementById('statsBtn').onclick = statsScreen;
+function confettiSmall(el){
+  const r = el.getBoundingClientRect();
+  for(let i=0;i<6;i++){
+    const d=document.createElement('div');
+    d.className='confetti'; d.textContent='✨';
+    d.style.left=(r.left+r.width/2+(Math.random()*80-40))+'px';
+    d.style.top=r.top+'px'; d.style.animationDuration='1.2s';
+    document.body.appendChild(d); setTimeout(()=>d.remove(),1500);
+  }
+}
+
+/* ---------- modo presentación: conocer las palabras (sin evaluación) ---------- */
+function startShow(){
+  const state = { i:0, seq: shuffle([...WORDS]).slice(0,ROUNDS) };
+  nextShow(state);
+}
+function nextShow(state){
+  if (state.i >= state.seq.length){
+    speak('¡muy bien, manu!');
+    confetti();
+    stage.innerHTML = `
+      <div class="celebrate">
+        <div class="big">😊</div>
+        <h1>¡muy bien, manu!</h1>
+        <div class="menu" style="margin-top:20px">
+          <button class="m5" onclick="startShow()">🔁 ver otra vez</button>
+          <button class="m3" onclick="menu()">🏠 ir a los juegos</button>
+        </div>
+      </div>`;
+    return;
+  }
+  const t = state.seq[state.i];
+  stage.innerHTML = `
+    <div class="subtitle" style="margin-bottom:4px">👀 conocer las palabras — ${state.i+1} de ${state.seq.length}</div>
+    <div class="progress-track"><div class="progress-fill" style="width:${state.i/state.seq.length*100}%"></div></div>
+    <div class="prompt-card" onclick="speak('${t.w}')">
+      <div class="prompt-emoji">${t.e}</div>
+      <div class="prompt-word">${t.w}</div>
+      <div class="hear">🔊 tocá la tarjeta para escucharla otra vez</div>
+    </div>
+    <div class="menu" style="max-width:260px">
+      <button class="m2" id="nextShowBtn" style="font-size:2.6rem; padding:14px">➡️</button>
+    </div>`;
+  document.getElementById('nextShowBtn').onclick = ()=>{ state.i++; nextShow(state); };
+  setTimeout(()=>speak(t.w), 300);
+}
+
+/* ---------- mode 1: word -> picture ---------- */
+function startWordToPic(){
+  const state = { i:0, seq: shuffle([...WORDS]).slice(0,ROUNDS), mode:'wp' };
+  nextWP(state);
+}
+function nextWP(state){
+  makeRound(state, (target, opts)=>{
+    stage.innerHTML = header(state,'📖 leo y busco el dibujo') + `
+      <div class="prompt-card" onclick="speak('${target.w}')">
+        <div class="prompt-word" data-word="${target.w}">${fmt(target.w)}</div>
+        <div class="hear">🔊 tocá la palabra para escucharla</div>
+      </div>
+      <div class="options" id="opts"></div>
+      <div class="feedback" id="fb"></div>`;
+    const box = document.getElementById('opts');
+    opts.forEach(o=>{
+      const b = document.createElement('button');
+      b.className='opt'; b.textContent=o.e;
+      if (o.w===target.w) b.dataset.ok='1';
+      b.onclick=()=>handleAnswer(b, o.w===target.w, state, ()=>nextWP(state));
+      box.appendChild(b);
+    });
+    speak(target.w);
+  });
+}
+
+/* ---------- mode 2: picture -> word ---------- */
+function startPicToWord(){
+  const state = { i:0, seq: shuffle([...WORDS]).slice(0,ROUNDS), mode:'pw' };
+  nextPW(state);
+}
+function nextPW(state){
+  makeRound(state, (target, opts)=>{
+    stage.innerHTML = header(state,'🔍 miro y busco la palabra') + `
+      <div class="prompt-card" onclick="speak('${target.w}')">
+        <div class="prompt-emoji">${target.e}</div>
+      </div>
+      <div class="options words" id="opts"></div>
+      <div class="feedback" id="fb"></div>`;
+    const box = document.getElementById('opts');
+    opts.forEach(o=>{
+      const b = document.createElement('button');
+      b.className='opt word-opt'; b.dataset.word=o.w; b.textContent=fmt(o.w);
+      if (o.w===target.w) b.dataset.ok='1';
+      b.onclick=()=>handleAnswer(b, o.w===target.w, state, ()=>nextPW(state));
+      box.appendChild(b);
+    });
+  });
+}
+
+/* ---------- mode 4: el loro dice (audio -> palabra, sin dibujo) ---------- */
+function startListen(){
+  const state = { i:0, seq: shuffle([...WORDS]).slice(0,ROUNDS), mode:'ls' };
+  nextLS(state);
+}
+function nextLS(state){
+  makeRound(state, (target, opts)=>{
+    stage.innerHTML = header(state,'🦜 el loro dice...') + `
+      <div class="prompt-card" onclick="speak('${target.w}')">
+        <div class="prompt-emoji">🦜</div>
+        <div class="hear">🔊 tocá al loro para escuchar la palabra otra vez</div>
+      </div>
+      <div class="options words" id="opts"></div>
+      <div class="feedback" id="fb"></div>`;
+    const box = document.getElementById('opts');
+    opts.forEach(o=>{
+      const b = document.createElement('button');
+      b.className='opt word-opt'; b.dataset.word=o.w; b.textContent=fmt(o.w);
+      if (o.w===target.w) b.dataset.ok='1';
+      b.onclick=()=>handleAnswer(b, o.w===target.w, state, ()=>nextLS(state));
+      box.appendChild(b);
+    });
+    setTimeout(()=>speak(target.w), 400);
+  });
+}
+
+/* ---------- mode 3: memotest ---------- */
+function startMemo(){
+  const pick = shuffle([...WORDS]).slice(0,6);
+  const cards = shuffle(pick.flatMap(o=>[
+    {id:o.w, kind:'emoji', show:o.e},
+    {id:o.w, kind:'word',  show:o.w},
+  ]));
+  stage.innerHTML = `
+    <div class="subtitle" style="margin-bottom:4px">🃏 memotest — uní la palabra con su dibujo</div>
+    <div class="memo-grid" id="grid"></div>
+    <div class="feedback" id="fb"></div>`;
+  const grid = document.getElementById('grid');
+  let open = [], lock = false, matched = 0;
+  cards.forEach(c=>{
+    const el = document.createElement('div');
+    el.className='card';
+    el.innerHTML = `<div class="card-inner">
+        <div class="face back">❓</div>
+        <div class="face front ${c.kind}" ${c.kind==='word'?`data-word="${c.show}"`:''}>${c.kind==='word'?fmt(c.show):c.show}</div>
+      </div>`;
+    el.onclick = ()=>{
+      if (lock || el.classList.contains('flipped')) return;
+      el.classList.add('flipped');
+      if (c.kind==='word') speak(c.id);
+      open.push({c, el});
+      if (open.length===2){
+        lock = true;
+        const [a,b] = open;
+        if (a.c.id===b.c.id && a.c.kind!==b.c.kind){
+          sndGood(); addStars(1);
+          a.el.classList.add('matched'); b.el.classList.add('matched');
+          document.getElementById('fb').textContent = '⭐ ' + rand(PRAISE);
+          speak(rand(PRAISE));
+          matched++;
+          open=[]; lock=false;
+          if (matched===6) setTimeout(()=>celebrate({mode:'memo'}), 900);
+        } else {
+          sndBad();
+          document.getElementById('fb').textContent = '💪 ' + rand(RETRY);
+          setTimeout(()=>{
+            a.el.classList.remove('flipped'); b.el.classList.remove('flipped');
+            open=[]; lock=false;
+          }, 1100);
+        }
+      }
+    };
+    grid.appendChild(el);
+  });
+}
+
+/* ---------- celebration ---------- */
+function celebrate(state){
+  confetti(); sndWin();
+  speak('¡Felicitaciones, Manu! ¡Terminaste el juego!');
+  stage.innerHTML = `
+    <div class="celebrate">
+      <div class="big">🏆</div>
+      <h1>¡lo lograste, manu!</h1>
+      <div class="stars">⭐⭐⭐</div>
+      <div class="subtitle">estrellas: <b>${score} / ${GOAL}</b></div>
+      <div class="menu" style="margin-top:20px">
+        <button class="m2" onclick="${state.mode==='memo'?'startMemo()':state.mode==='wp'?'startWordToPic()':state.mode==='ls'?'startListen()':'startPicToWord()'}">🔁 jugar otra vez</button>
+        <button class="m3" onclick="menu()">🏠 elegir otro juego</button>
+      </div>
+    </div>`;
+}
+
+setScore(score); // restaurar estrellas guardadas
+menu();
+</script>
+</body>
+</html>
