@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { getConfig, recordEvento } from "@/lib/storage";
+import { elegirPalabras } from "@/lib/seleccion";
 import { PalabraDefault } from "@/data/palabras-default";
 import { speak, sndGood, sndBad, sndWin } from "@/lib/audio";
 
@@ -12,6 +13,26 @@ const PRAISE = ['¡muy bien, manu!', '¡genial!', '¡excelente!', '¡sos un camp
 // Si no hay nombre configurado, los mensajes salen sin él
 const withName = (msg: string, nombre: string) =>
   nombre ? msg.replace('manu', nombre.toLowerCase()) : msg.replace(', manu', '');
+
+// Imagen de una palabra: foto real si la cargaron, si no el emoji
+const Visual = ({ p, size = "grande" }: { p: PalabraDefault; size?: "grande" | "opcion" | "memo" }) => {
+  if (p.foto) {
+    const cls =
+      size === "grande"
+        ? "mx-auto h-[clamp(7rem,28vw,11rem)] w-auto max-w-full rounded-2xl object-cover"
+        : size === "opcion"
+        ? "mx-auto h-[clamp(4.5rem,20vw,7rem)] w-full rounded-xl object-cover"
+        : "absolute inset-0 w-full h-full rounded-[16px] object-cover";
+    return <img src={p.foto} alt={p.palabra} className={cls} draggable={false} />;
+  }
+  const cls =
+    size === "grande"
+      ? "text-[clamp(4rem,16vw,6.5rem)] leading-[1.1]"
+      : size === "opcion"
+      ? "text-[3.4rem]"
+      : "text-[clamp(1.8rem,7vw,2.4rem)]";
+  return <span className={cls}>{p.emoji}</span>;
+};
 const RETRY = ['¡casi! probá otra vez', 'mmm... ¡intentá de nuevo!', '¡vos podés! otra vez'];
 
 const shuffle = <T,>(a: T[]): T[] => {
@@ -80,16 +101,16 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
     if (activeWords.length === 0) return;
 
     if (mode === "memo") {
-      const pick = shuffle([...activeWords]).slice(0, 6);
+      const pick = elegirPalabras(activeWords, 6);
       const cards = shuffle(pick.flatMap(o => [
-        { id: o.palabra, kind: 'emoji', show: o.emoji },
+        { id: o.palabra, kind: 'emoji', show: o.emoji, foto: o.foto },
         { id: o.palabra, kind: 'word', show: o.palabra },
       ]));
       setMemoCards(cards);
       setMemoMatched(0);
       setMemoOpen([]);
     } else {
-      const selectedSeq = shuffle([...activeWords]).slice(0, ROUNDS);
+      const selectedSeq = elegirPalabras(activeWords, ROUNDS);
       setSeq(selectedSeq);
       setCurrentIndex(0);
       setupRound(0, selectedSeq, activeWords);
@@ -349,7 +370,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
       {mode === "show" && target && (
         <>
           <div className="bg-white rounded-[26px] p-[22px_30px] text-center shadow-[0_6px_0_rgba(0,0,0,0.12)] mb-[22px] min-w-[min(90%,420px)] cursor-pointer" onClick={() => speak(target.palabra)}>
-            <div className="text-[clamp(4rem,16vw,6.5rem)] leading-[1.1]">{target.emoji}</div>
+            <div className="leading-[1.1]"><Visual p={target} size="grande" /></div>
             <div className="text-[clamp(2.6rem,9vw,4rem)] font-bold text-brand-pink tracking-[2px]">{target.palabra}</div>
             <div className="text-[1rem] text-[#888] mt-1.5">🔊 tocá la tarjeta para escucharla otra vez</div>
           </div>
@@ -372,17 +393,17 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
           </div>
           <div className="grid grid-cols-3 gap-[14px] w-full max-w-[560px]">
             {options.map(o => (
-              <button 
-                key={o.palabra} 
+              <button
+                key={o.palabra}
                 onClick={() => handleAnswer(o)}
-                className={`bg-white border-none rounded-[22px] p-[16px_8px] text-[3.4rem] cursor-pointer shadow-[0_5px_0_rgba(0,0,0,0.14)] font-inherit transition-transform active:translate-y-1 active:shadow-none
+                className={`bg-white border-none rounded-[22px] p-[10px_8px] cursor-pointer shadow-[0_5px_0_rgba(0,0,0,0.14)] font-inherit transition-transform active:translate-y-1 active:shadow-none
                   ${buttonStates[o.palabra] === 'correct' ? 'bg-brand-green text-white animate-pop' : ''}
                   ${buttonStates[o.palabra] === 'wrong' ? 'bg-[#ffe0e0] animate-shake' : ''}
                   ${buttonStates[o.palabra] === 'dim' ? 'opacity-35 pointer-events-none' : ''}
                   ${buttonStates[o.palabra] === 'hint' ? 'animate-glow' : ''}
                 `}
               >
-                {o.emoji}
+                <Visual p={o} size="opcion" />
               </button>
             ))}
           </div>
@@ -395,7 +416,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
         <>
           <div className="bg-white rounded-[26px] p-[22px_30px] text-center shadow-[0_6px_0_rgba(0,0,0,0.12)] mb-[22px] min-w-[min(90%,420px)] cursor-pointer pointer-events-none">
              {/* SPEC rule 7.2: NO audio on tap for picture in pw */}
-            <div className="text-[clamp(4rem,16vw,6.5rem)] leading-[1.1]">{target.emoji}</div>
+            <div className="leading-[1.1]"><Visual p={target} size="grande" /></div>
           </div>
           <div className="grid grid-cols-1 gap-[14px] w-full max-w-[420px]">
             {options.map(o => (
@@ -463,7 +484,11 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
                     </div>
                     <div className={`absolute inset-0 [backface-visibility:hidden] rounded-[16px] flex items-center justify-center text-center shadow-[0_4px_0_rgba(0,0,0,0.14)] p-1 [transform:rotateY(180deg)] ${c.matched ? 'bg-[#d2f5df] outline outline-3 outline-[#3dbf6e]' : 'bg-white'}`}>
                       {c.kind === 'emoji' ? (
-                        <span className="text-[clamp(1.8rem,7vw,2.4rem)]">{c.show}</span>
+                        c.foto ? (
+                          <img src={c.foto} alt="" draggable={false} className="absolute inset-0 w-full h-full rounded-[16px] object-cover" />
+                        ) : (
+                          <span className="text-[clamp(1.8rem,7vw,2.4rem)]">{c.show}</span>
+                        )
                       ) : (
                         <span className="text-[clamp(0.8rem,3vw,1.15rem)] font-bold text-brand-pink tracking-[1px] break-all">{c.show}</span>
                       )}

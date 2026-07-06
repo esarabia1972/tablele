@@ -3,6 +3,7 @@ export type PalabraDefault = {
   palabra: string;
   emoji: string;
   usar: boolean;
+  foto?: string; // URL de foto real (reemplaza al emoji si está)
 };
 
 export const PALABRAS_DEFAULT: PalabraDefault[] = [
