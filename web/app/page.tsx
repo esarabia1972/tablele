@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { getSessionData, setSessionData } from "@/lib/storage";
+import { syncFromServer } from "@/lib/sync";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -33,6 +34,8 @@ export default function LoginPage() {
 
       if (data.ok) {
         setSessionData({ email, nombre: data.nombre });
+        // Baja el progreso guardado en el servidor (estrellas, config, informe)
+        await syncFromServer(email);
         router.push("/jugar");
       } else {
         setError(data.message || "Error al verificar el acceso");

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { getSessionData, getStars, setStars, getConfig } from "@/lib/storage";
+import { syncFromServer } from "@/lib/sync";
 import TopBar from "@/components/TopBar";
 import GameEngine from "@/components/GameEngine";
 
@@ -17,12 +18,15 @@ export default function JugarPage() {
     const s = getSessionData();
     if (!s) {
       router.replace("/");
-    } else {
+      return;
+    }
+    (async () => {
+      await syncFromServer(s.email);
       // El nombre configurado por el adulto tiene prioridad sobre el del login
       const configNombre = getConfig().nombre?.trim();
       setSession({ ...s, nombre: configNombre || s.nombre });
       setScore(getStars());
-    }
+    })();
   }, [router]);
 
   const addStars = (n: number) => {

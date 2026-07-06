@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import TopBar from "@/components/TopBar";
-import { getConfig, saveConfig, clearSessionData, ConfigTablero } from "@/lib/storage";
+import { getConfig, saveConfig, clearSessionData, getSessionData, ConfigTablero } from "@/lib/storage";
+import { syncFromServer } from "@/lib/sync";
 import { PALABRAS_DEFAULT, SUGERENCIAS_EMOJI, PalabraDefault } from "@/data/palabras-default";
 
 export default function ConfigPage() {
@@ -11,7 +12,11 @@ export default function ConfigPage() {
   const [config, setConfig] = useState<ConfigTablero | null>(null);
 
   useEffect(() => {
-    setConfig(getConfig());
+    const s = getSessionData();
+    (async () => {
+      if (s) await syncFromServer(s.email);
+      setConfig(getConfig());
+    })();
   }, []);
 
   const handleWordChange = (letra: string, newValue: string) => {

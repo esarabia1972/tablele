@@ -1,6 +1,7 @@
 "use client";
 
 import { PalabraDefault, PALABRAS_DEFAULT } from "@/data/palabras-default";
+import { schedulePush } from "@/lib/sync";
 
 export type ConfigTablero = {
   nombre?: string;
@@ -54,6 +55,7 @@ export function getConfig(): ConfigTablero {
 export function saveConfig(config: ConfigTablero) {
   if (typeof window === "undefined") return;
   localStorage.setItem("tablele.config", JSON.stringify(config));
+  schedulePush();
 }
 
 export function getStars(): number {
@@ -68,6 +70,7 @@ export function getStars(): number {
 export function setStars(n: number) {
   if (typeof window === "undefined") return;
   localStorage.setItem('tablele.stars', n.toString());
+  schedulePush();
 }
 
 export function getStats(): Record<string, PalabraStat> {
@@ -86,9 +89,11 @@ export function recordStat(word: string, ok: boolean) {
   stats[word].tot++;
   if (ok) stats[word].ok++;
   localStorage.setItem('tablele.stats', JSON.stringify(stats));
+  schedulePush();
 }
 
 export function clearStats() {
   if (typeof window === "undefined") return;
   localStorage.removeItem('tablele.stats');
+  schedulePush();
 }

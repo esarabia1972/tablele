@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import TopBar from "@/components/TopBar";
-import { getStats, clearStats, PalabraStat } from "@/lib/storage";
+import { getStats, clearStats, getSessionData, PalabraStat } from "@/lib/storage";
+import { syncFromServer } from "@/lib/sync";
 
 export default function InformePage() {
   const [stats, setStats] = useState<Record<string, PalabraStat>>({});
@@ -10,7 +11,11 @@ export default function InformePage() {
   const [fill, setFill] = useState(0);
 
   useEffect(() => {
-    setStats(getStats());
+    const s = getSessionData();
+    (async () => {
+      if (s) await syncFromServer(s.email);
+      setStats(getStats());
+    })();
   }, []);
 
   const rows = Object.entries(stats).sort(
