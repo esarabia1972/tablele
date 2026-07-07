@@ -205,7 +205,7 @@ export default function ConfigPage() {
               <option value="SELEC">SELEC (Etapa Global)</option>
             </select>
           </div>
-          <div className="mb-2">
+          <div className="mb-4">
             <label className="block text-brand-blue font-bold mb-1">Etapa</label>
             <div className="flex gap-4">
               <label className="flex items-center gap-2 cursor-pointer">
@@ -215,6 +215,35 @@ export default function ConfigPage() {
               <label className="flex items-center gap-2 opacity-50 cursor-not-allowed" title="Próximamente">
                 <input type="radio" name="nivel" value="Silabica" disabled className="w-5 h-5" />
                 <span className="font-bold text-gray-500">Silábica (próximamente)</span>
+              </label>
+            </div>
+          </div>
+          <div className="mb-2">
+            <label className="block text-brand-blue font-bold mb-1">Nivel</label>
+            <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="nivelPalabra"
+                  checked={config.nivelPalabra === "inicial"}
+                  onChange={() => setConfig({ ...config, nivelPalabra: "inicial" })}
+                  className="w-5 h-5 accent-brand-blue"
+                />
+                <span className="font-bold text-brand-dark">
+                  Inicial <span className="font-normal text-gray-500">(solo la primera letra)</span>
+                </span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="nivelPalabra"
+                  checked={config.nivelPalabra !== "inicial"}
+                  onChange={() => setConfig({ ...config, nivelPalabra: "intermedio" })}
+                  className="w-5 h-5 accent-brand-blue"
+                />
+                <span className="font-bold text-brand-dark">
+                  Intermedio <span className="font-normal text-gray-500">(palabra completa)</span>
+                </span>
               </label>
             </div>
           </div>

@@ -6,7 +6,8 @@ import { schedulePush } from "@/lib/sync";
 export type ConfigTablero = {
   nombre?: string;
   metodo: string;
-  nivel: string;
+  nivel: string; // etapa: Global | Silábica
+  nivelPalabra?: "inicial" | "intermedio"; // inicial = solo primera letra
   palabras: PalabraDefault[];
 };
 
@@ -53,7 +54,7 @@ export function getConfig(): ConfigTablero {
     try {
       const data = localStorage.getItem("tablele.config");
       if (data) {
-        return { nombre: "", ...JSON.parse(data) };
+        return { nombre: "", nivelPalabra: "intermedio", ...JSON.parse(data) };
       }
     } catch (e) {}
   }
@@ -61,6 +62,7 @@ export function getConfig(): ConfigTablero {
     nombre: "",
     metodo: "SELEC",
     nivel: "Global",
+    nivelPalabra: "intermedio",
     palabras: PALABRAS_DEFAULT,
   };
 }

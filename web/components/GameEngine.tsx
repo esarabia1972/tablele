@@ -51,6 +51,10 @@ interface GameEngineProps {
 
 export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMenu, onPlayAgain }: GameEngineProps) {
   const [words, setWords] = useState<PalabraDefault[]>([]);
+  const [nivelPalabra, setNivelPalabra] = useState<"inicial" | "intermedio">("intermedio");
+  // En nivel Inicial se muestra solo la primera letra (el audio sigue diciendo la palabra)
+  const mostrar = (palabra: string) =>
+    nivelPalabra === "inicial" ? palabra.charAt(0) : palabra;
   const [seq, setSeq] = useState<PalabraDefault[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   
@@ -97,6 +101,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
     const config = getConfig();
     const activeWords = config.palabras.filter(w => w.usar);
     setWords(activeWords);
+    setNivelPalabra(config.nivelPalabra === "inicial" ? "inicial" : "intermedio");
     
     if (activeWords.length === 0) return;
 
@@ -371,7 +376,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
         <>
           <div className="bg-white rounded-[26px] p-[22px_30px] text-center shadow-[0_6px_0_rgba(0,0,0,0.12)] mb-[22px] min-w-[min(90%,420px)] cursor-pointer" onClick={() => speak(target.palabra)}>
             <div className="leading-[1.1]"><Visual p={target} size="grande" /></div>
-            <div className="text-[clamp(2.6rem,9vw,4rem)] font-bold text-brand-pink tracking-[2px]">{target.palabra}</div>
+            <div className="text-[clamp(2.6rem,9vw,4rem)] font-bold text-brand-pink tracking-[2px]">{mostrar(target.palabra)}</div>
             <div className="text-[1rem] text-[#888] mt-1.5">🔊 tocá la tarjeta para escucharla otra vez</div>
           </div>
           <button className="bg-brand-green text-white border-none rounded-[22px] p-[16px] text-[1.5rem] font-bold cursor-pointer shadow-[0_5px_0_rgba(0,0,0,0.18)] active:translate-y-1 active:shadow-none w-full max-w-[260px]" onClick={() => {
@@ -388,7 +393,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
         <>
           <div className="bg-white rounded-[26px] p-[22px_30px] text-center shadow-[0_6px_0_rgba(0,0,0,0.12)] mb-[22px] min-w-[min(90%,420px)] cursor-pointer pointer-events-none">
             {/* SPEC rule 7.2: NO audio on tap for word in wp */}
-            <div className="text-[clamp(2.6rem,9vw,4rem)] font-bold text-brand-pink tracking-[2px]">{target.palabra}</div>
+            <div className="text-[clamp(2.6rem,9vw,4rem)] font-bold text-brand-pink tracking-[2px]">{mostrar(target.palabra)}</div>
             {/* REMOVED hint text "tocá la palabra para escucharla" */}
           </div>
           <div className="grid grid-cols-3 gap-[14px] w-full max-w-[560px]">
@@ -430,7 +435,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
                   ${buttonStates[o.palabra] === 'hint' ? 'animate-glow' : ''}
                 `}
               >
-                {o.palabra}
+                {mostrar(o.palabra)}
               </button>
             ))}
           </div>
@@ -457,7 +462,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
                   ${buttonStates[o.palabra] === 'hint' ? 'animate-glow' : ''}
                 `}
               >
-                {o.palabra}
+                {mostrar(o.palabra)}
               </button>
             ))}
           </div>
@@ -490,7 +495,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
                           <span className="text-[clamp(1.8rem,7vw,2.4rem)]">{c.show}</span>
                         )
                       ) : (
-                        <span className="text-[clamp(0.8rem,3vw,1.15rem)] font-bold text-brand-pink tracking-[1px] break-all">{c.show}</span>
+                        <span className={`font-bold text-brand-pink tracking-[1px] break-all ${nivelPalabra === "inicial" ? "text-[clamp(1.6rem,6vw,2.2rem)]" : "text-[clamp(0.8rem,3vw,1.15rem)]"}`}>{mostrar(c.show)}</span>
                       )}
                     </div>
                   </div>
