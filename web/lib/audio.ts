@@ -85,8 +85,7 @@ export function bestVoice(): SpeechSynthesisVoice | null {
   return vs.sort((a, b) => scoreVoice(b) - scoreVoice(a))[0];
 }
 
-export function speak(text: string) {
-  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+function doSpeak(text: string) {
   try {
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
@@ -95,6 +94,7 @@ export function speak(text: string) {
       u.voice = v;
       u.lang = v.lang;
     } else {
+      // Sin voz elegida, al menos forzar idioma español
       u.lang = 'es-AR';
     }
     u.rate = 0.85;
@@ -103,6 +103,24 @@ export function speak(text: string) {
   } catch (e) {
     console.error("Speech synthesis failed", e);
   }
+}
+
+export function speak(text: string) {
+  if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+
+  // En iOS getVoices() puede venir vacío al principio: esperar a que carguen
+  // para no caer en la voz por defecto (que puede ser inglesa y lee mal los acentos).
+  if (speechSynthesis.getVoices().length === 0) {
+    let tries = 0;
+    const iv = setInterval(() => {
+      if (speechSynthesis.getVoices().length > 0 || ++tries >= 10) {
+        clearInterval(iv);
+        doSpeak(text);
+      }
+    }, 150);
+    return;
+  }
+  doSpeak(text);
 }
 
 // Prefetch voices
