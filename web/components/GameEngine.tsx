@@ -75,6 +75,8 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
 
   // Momento en que apareció la ronda actual (para medir latencia de respuesta)
   const roundStartRef = useRef<number>(Date.now());
+  // Opciones falsas ya elegidas por error en esta ronda (para no repetirlas)
+  const wrongChoicesRef = useRef<string[]>([]);
 
   // Timers centralizados: se cancelan al salir del juego para que no
   // quede una palabra "hablando" después de volver al menú.
@@ -143,6 +145,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
     setFeedback("");
     setLocked(false);
     roundStartRef.current = Date.now();
+    wrongChoicesRef.current = [];
 
     if (mode === "show" || mode === "listen") {
       later(() => speak(target.palabra), 400);
@@ -215,23 +218,34 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
         }, 1400);
       }
     } else {
+      // Bloquear los clicks hasta que termine el feedback (evita que pruebe apurado)
+      setLocked(true);
       setButtonStates(prev => ({ ...prev, [chosenOption.palabra]: "wrong" }));
       sndBad();
       const retryMsg = rand(RETRY);
       setFeedback(`💪 ${retryMsg}`);
       later(() => speak(retryMsg), 350);
 
-      later(() => {
-        setButtonStates(prev => ({ ...prev, [chosenOption.palabra]: "dim" }));
-      }, 500);
+      wrongChoicesRef.current.push(chosenOption.palabra);
+      const newErrs = errs + 1;
+      setErrs(newErrs);
 
-      setErrs(e => {
-        const newErrs = e + 1;
-        if (newErrs >= 2) {
-          setButtonStates(prev => ({ ...prev, [target.palabra]: "hint" }));
+      // Mantener la correcta pero renovar las opciones falsas y mezclar el orden,
+      // así no puede resolver por descarte probando una por una.
+      later(() => {
+        const evitar = new Set([target.palabra, ...wrongChoicesRef.current]);
+        let pool = words.filter(x => !evitar.has(x.palabra));
+        if (pool.length < 2) pool = words.filter(x => x.palabra !== target.palabra);
+        const others = shuffle(pool).slice(0, 2);
+        setOptions(shuffle([target, ...others]));
+        setButtonStates(newErrs >= 2 ? { [target.palabra]: "hint" } : {});
+        setFeedback("");
+        setLocked(false);
+        // En El Loro Dice, repetir la palabra para retomar la consigna
+        if (mode === "listen") {
+          later(() => speak(target.palabra), 300);
         }
-        return newErrs;
-      });
+      }, 1800);
     }
   };
 
