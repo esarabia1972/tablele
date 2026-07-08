@@ -238,11 +238,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
   const handleMemoClick = (idx: number) => {
     if (locked || memoCards[idx].flipped || memoOpen.includes(idx)) return;
     
-    const card = memoCards[idx];
-    if (card.kind === 'word') {
-      speak(card.id);
-    }
-    
+    // No decir la palabra al dar vuelta cartas: el niño tiene que leerla
     const newOpen = [...memoOpen, idx];
     setMemoOpen(newOpen);
     
