@@ -26,6 +26,11 @@ export type Evento = {
 const MAX_EVENTOS = 2000;
 const MAX_DIAS_USO = 90;
 
+// Meta de estrellas: 1 por juego terminado, con GOAL llega al premio
+export const GOAL = 5;
+// Si pasa más de este tiempo sin jugar, la partida a medias se resetea sola
+const STARS_TTL_MS = 60 * 60 * 1000; // 1 hora
+
 export function getSessionData(): { username: string } | null {
   if (typeof window === "undefined") return null;
   try {
@@ -76,7 +81,7 @@ export function saveConfig(config: ConfigTablero) {
 export function getStars(): number {
   if (typeof window === "undefined") return 0;
   try {
-    return Math.min(parseInt(localStorage.getItem('tablele.stars') || '0'), 20);
+    return Math.min(parseInt(localStorage.getItem('tablele.stars') || '0'), GOAL);
   } catch (e) {
     return 0;
   }
@@ -85,7 +90,24 @@ export function getStars(): number {
 export function setStars(n: number) {
   if (typeof window === "undefined") return;
   localStorage.setItem('tablele.stars', n.toString());
+  if (n > 0) localStorage.setItem('tablele.lastPlayed', Date.now().toString());
   schedulePush();
+}
+
+// Nueva partida automática: si quedaron estrellas a medias y pasó el TTL
+// sin jugar (o venían del esquema viejo de 20), arrancamos de cero.
+// Llamar al entrar a la pantalla de juego, después de sincronizar.
+export function expirarEstrellas() {
+  if (typeof window === "undefined") return;
+  const raw = parseInt(localStorage.getItem('tablele.stars') || '0') || 0;
+  if (raw <= 0) return;
+  const last = parseInt(localStorage.getItem('tablele.lastPlayed') || '0') || 0;
+  if (raw > GOAL || (last > 0 && Date.now() - last > STARS_TTL_MS)) {
+    setStars(0);
+  } else if (!last) {
+    // Datos sin timestamp (versión anterior): arranca a contar desde ahora
+    localStorage.setItem('tablele.lastPlayed', Date.now().toString());
+  }
 }
 
 export function getEventos(): Evento[] {

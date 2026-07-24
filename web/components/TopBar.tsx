@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { GOAL } from "@/lib/storage";
 
 interface TopBarProps {
   score?: number;
@@ -30,11 +31,11 @@ export default function TopBar({ score, onBack, backTo, configTo }: TopBarProps)
         style={{ paddingTop: "max(1.25rem, env(safe-area-inset-top))" }}
       >
         {score !== undefined && (
-          <div className="grid grid-cols-10 gap-x-[6px] gap-y-[4px] w-fit mx-auto">
-            {Array.from({ length: 20 }).map((_, i) => (
+          <div className="flex gap-x-[12px] w-fit mx-auto">
+            {Array.from({ length: GOAL }).map((_, i) => (
               <span
                 key={i}
-                className={`text-[clamp(1.05rem,4.5vw,1.5rem)] leading-none transition-all duration-300 ${
+                className={`text-[clamp(1.6rem,7vw,2.3rem)] leading-none transition-all duration-300 ${
                   i < score
                     ? "opacity-100 drop-shadow-[0_1px_2px_rgba(0,0,0,0.25)] scale-110"
                     : "opacity-25 grayscale scale-90"

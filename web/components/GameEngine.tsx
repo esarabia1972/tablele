@@ -1,13 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { getConfig, recordEvento } from "@/lib/storage";
+import { getConfig, recordEvento, GOAL } from "@/lib/storage";
 import { elegirPalabras } from "@/lib/seleccion";
 import { PalabraDefault } from "@/data/palabras-default";
 import { speak, sndGood, sndBad, sndWin } from "@/lib/audio";
 
-const ROUNDS = 12;
-const GOAL = 20;
+const ROUNDS = 6;
 const PRAISE = ['¡muy bien, manu!', '¡genial!', '¡excelente!', '¡sos un campeón!', '¡bravo!', '¡súper!'];
 
 // Si no hay nombre configurado, los mensajes salen sin él
@@ -152,21 +151,28 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
     }
   };
 
+  // Al terminar un juego completo se gana UNA estrella
+  // ("Conocer" no da estrella: es solo para mirar las palabras).
+  // Si con esa estrella llega a la meta, va directo a la pantalla de premio.
   const handleCelebrate = () => {
     setFinished(true);
+    if (mode === "show") {
+      sndWin();
+      spawnConfetti(40);
+      speak(`¡Felicitaciones${nombre ? `, ${nombre}` : ""}! ¡Terminaste!`);
+      return;
+    }
+    onAddStars(1);
     sndWin();
     spawnConfetti(40);
-    speak(`¡Felicitaciones${nombre ? `, ${nombre}` : ""}! ¡Terminaste el juego!`);
-  };
-
-  const triggerPrize = () => {
-    setFinished(true);
-    setPrizeWon(true);
-    sndWin();
-    spawnConfetti(40);
-    later(() => spawnConfetti(40), 800);
-    later(() => spawnConfetti(40), 1600);
-    speak(`¡Veinte estrellas! ¡Te ganaste un premio${nombre ? `, ${nombre}` : ""}!`);
+    if (score + 1 >= GOAL) {
+      setPrizeWon(true);
+      later(() => spawnConfetti(40), 800);
+      later(() => spawnConfetti(40), 1600);
+      speak(`¡Cinco estrellas! ¡Te ganaste un premio${nombre ? `, ${nombre}` : ""}!`);
+    } else {
+      speak(`¡Felicitaciones${nombre ? `, ${nombre}` : ""}! ¡Ganaste una estrella!`);
+    }
   };
 
   const spawnConfetti = (count: number) => {
@@ -204,19 +210,13 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
       sndGood();
       
       const praiseMsg = withName(rand(PRAISE), nombre);
-      setFeedback(`⭐ ${praiseMsg}`);
+      setFeedback(`✅ ${praiseMsg}`);
       speak(praiseMsg);
 
-      onAddStars(1);
-      if (score + 1 >= GOAL) {
-        later(triggerPrize, 1300);
-      } else {
-        if ((score + 1) % 10 === 0) spawnConfetti(20);
-        later(() => {
-          setCurrentIndex(c => c + 1);
-          setupRound(currentIndex + 1, seq, words);
-        }, 1400);
-      }
+      later(() => {
+        setCurrentIndex(c => c + 1);
+        setupRound(currentIndex + 1, seq, words);
+      }, 1400);
     } else {
       // Bloquear los clicks hasta que termine el feedback (evita que pruebe apurado)
       setLocked(true);
@@ -281,18 +281,14 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
           return newCards;
         });
         sndGood();
-        onAddStars(1);
         const praiseMsg = withName(rand(PRAISE), nombre);
-        setFeedback(`⭐ ${praiseMsg}`);
+        setFeedback(`✅ ${praiseMsg}`);
         speak(praiseMsg);
-        
+
         later(() => {
           setMemoMatched(m => {
             const newM = m + 1;
-            if (newM === 6) {
-              if (score + 1 >= GOAL) later(triggerPrize, 800);
-              else later(handleCelebrate, 900);
-            }
+            if (newM === 6) later(handleCelebrate, 900);
             return newM;
           });
           setMemoOpen([]);
@@ -317,8 +313,8 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
     return (
       <div className="flex-1 flex flex-col items-center justify-center w-full max-w-[520px] text-center mt-8">
         <div className="text-[5rem] animate-bounce-short">🎁</div>
-        <h1 className="text-brand-dark text-[2.2rem] mb-2 drop-shadow-[2px_2px_0_#fff] font-bold">¡20 estrellas!</h1>
-        <div className="text-[3rem] my-3">⭐⭐⭐⭐⭐</div>
+        <h1 className="text-brand-dark text-[2.2rem] mb-2 drop-shadow-[2px_2px_0_#fff] font-bold">¡{GOAL} estrellas!</h1>
+        <div className="text-[3rem] my-3">{"⭐".repeat(GOAL)}</div>
         <div className="text-brand-blue text-[1.5rem] mb-5">
           <b>¡te ganaste un premio{nombre ? `, ${nombre.toLowerCase()}` : ""}!</b><br/>andá a buscarlo 😄
         </div>
@@ -337,8 +333,23 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
       <div className="flex-1 flex flex-col items-center justify-center w-full max-w-[520px] text-center mt-8">
         <div className="text-[5rem] animate-bounce-short">🏆</div>
         <h1 className="text-brand-dark text-[2.2rem] mb-2 drop-shadow-[2px_2px_0_#fff] font-bold">¡lo lograste{nombre ? `, ${nombre.toLowerCase()}` : ""}!</h1>
-        <div className="text-[3rem] my-3">⭐⭐⭐</div>
-        <div className="text-brand-blue text-[1.15rem] mb-5">estrellas: <b>{score} / {GOAL}</b></div>
+        {mode !== "show" ? (
+          <>
+            <div className="text-brand-blue text-[1.4rem] mt-2 mb-1 font-bold">¡ganaste una estrella!</div>
+            <div className="text-[2.4rem] my-3 tracking-[6px]">
+              {Array.from({ length: GOAL }).map((_, i) => (
+                <span key={i} className={i < score ? "" : "opacity-25 grayscale"}>⭐</span>
+              ))}
+            </div>
+            <div className="text-brand-blue text-[1.15rem] mb-5">
+              {GOAL - score > 0
+                ? <>te falta{GOAL - score > 1 ? "n" : ""} <b>{GOAL - score}</b> para el premio</>
+                : null}
+            </div>
+          </>
+        ) : (
+          <div className="text-[3rem] my-3">🎉</div>
+        )}
         <div className="flex flex-col gap-4 w-full max-w-[300px]">
           <button className="bg-brand-green text-white border-none rounded-[22px] p-5 text-[1.35rem] font-bold cursor-pointer shadow-[0_5px_0_rgba(0,0,0,0.18)] active:translate-y-1 active:shadow-none w-full" onClick={initGame}>
             🔁 jugar otra vez
@@ -406,7 +417,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
             <div className="text-[clamp(2.6rem,9vw,4rem)] font-bold text-brand-pink tracking-[2px]">{mostrar(target.palabra)}</div>
             {/* REMOVED hint text "tocá la palabra para escucharla" */}
           </div>
-          <div className="grid grid-cols-3 gap-[14px] w-full max-w-[560px]">
+          <div className="grid grid-cols-3 gap-[22px] w-full max-w-[600px] px-2">
             {options.map(o => (
               <button
                 key={o.palabra}
@@ -433,7 +444,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
              {/* SPEC rule 7.2: NO audio on tap for picture in pw */}
             <div className="leading-[1.1]"><Visual p={target} size="grande" /></div>
           </div>
-          <div className="grid grid-cols-1 gap-[14px] w-full max-w-[420px]">
+          <div className="grid grid-cols-1 gap-[24px] w-full max-w-[420px]">
             {options.map(o => (
               <button 
                 key={o.palabra} 
@@ -460,7 +471,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
             <div className="text-[clamp(4rem,16vw,6.5rem)] leading-[1.1]">🦜</div>
             <div className="text-[1rem] text-[#888] mt-1.5">🔊 tocá al loro para escuchar la palabra otra vez</div>
           </div>
-          <div className="grid grid-cols-1 gap-[14px] w-full max-w-[420px]">
+          <div className="grid grid-cols-1 gap-[24px] w-full max-w-[420px]">
             {options.map(o => (
               <button 
                 key={o.palabra} 
@@ -483,7 +494,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
       {/* Mode Memo: Memotest */}
       {mode === "memo" && (
         <>
-          <div className="grid grid-cols-4 gap-[8px] w-full max-w-[480px]">
+          <div className="grid grid-cols-4 gap-[12px] w-full max-w-[500px] px-1">
             {memoCards.map((c, idx) => {
               const isOpen = memoOpen.includes(idx);
               const isMatched = memoMatched > 0 && !memoOpen.includes(idx) && false; // We track match via class? Wait, we can track matched indices!

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { getSessionData, getStars, setStars, getConfig, addUso } from "@/lib/storage";
+import { getSessionData, getStars, setStars, getConfig, addUso, expirarEstrellas, GOAL } from "@/lib/storage";
 import { syncFromServer } from "@/lib/sync";
 import TopBar from "@/components/TopBar";
 import GameEngine from "@/components/GameEngine";
@@ -22,12 +22,28 @@ export default function JugarPage() {
     }
     (async () => {
       await syncFromServer(s.username);
+      // Partida a medias con más de 1 h sin jugar: arranca de cero
+      expirarEstrellas();
       // El nombre del niño/a se define en Configuración (puede estar vacío)
       const nombre = getConfig().nombre?.trim() || "";
       setSession({ username: s.username, nombre });
       setScore(getStars());
     })();
   }, [router]);
+
+  // Si la app quedó abierta y vuelven después de 1 h, resetear la partida
+  // (solo en el menú, para no cortar un juego en curso)
+  useEffect(() => {
+    if (view !== "menu") return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        expirarEstrellas();
+        setScore(getStars());
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [view]);
 
   // Tiempo de uso: suma 15 s por tick mientras la app está visible
   useEffect(() => {
@@ -38,7 +54,7 @@ export default function JugarPage() {
   }, []);
 
   const addStars = (n: number) => {
-    const newScore = Math.min(score + n, 20);
+    const newScore = Math.max(0, Math.min(score + n, GOAL));
     setScore(newScore);
     setStars(newScore);
   };
