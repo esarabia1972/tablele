@@ -111,7 +111,11 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
       setMemoMatched(0);
       setMemoOpen([]);
     } else {
-      const selectedSeq = elegirPalabras(activeWords, ROUNDS);
+      // "Conocer" recorre TODAS las palabras activas (es presentación, no
+      // ejercicio: no tiene sentido dejar palabras sin mostrar). El resto de
+      // los juegos hace ROUNDS rondas con selección ponderada.
+      const cuantas = mode === "show" ? activeWords.length : ROUNDS;
+      const selectedSeq = elegirPalabras(activeWords, cuantas);
       setSeq(selectedSeq);
       setCurrentIndex(0);
       setupRound(0, selectedSeq, activeWords);
@@ -127,7 +131,9 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
   }, [mode]);
 
   const setupRound = (idx: number, sequence: PalabraDefault[], allWords: PalabraDefault[]) => {
-    if (idx >= sequence.length || idx >= ROUNDS) {
+    // En "Conocer" el largo es la cantidad de palabras activas, no ROUNDS
+    const total = mode === "show" ? sequence.length : Math.min(sequence.length, ROUNDS);
+    if (idx >= total) {
       handleCelebrate();
       return;
     }
@@ -435,14 +441,17 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
 
   const target = seq[currentIndex];
 
+  // "Conocer" recorre todas las palabras activas; el resto hace ROUNDS rondas
+  const totalRondas = mode === "show" ? seq.length : ROUNDS;
+
   const header = (
     <div className="w-full flex flex-col items-center mb-[14px]">
       <div className="text-brand-blue text-[clamp(0.95rem,3.6vw,1.15rem)] text-center mb-1 whitespace-nowrap">
-        {titleMap[mode]} {mode !== "memo" && `— ${currentIndex + 1} de ${ROUNDS}`}
+        {titleMap[mode]} {mode !== "memo" && `— ${currentIndex + 1} de ${totalRondas}`}
       </div>
       {mode !== "memo" && (
         <div className="w-full max-w-[520px] h-[22px] bg-white/60 rounded-full overflow-hidden mt-1.5">
-          <div className="h-full rounded-full bg-gradient-to-r from-[#ffd23f] to-[#ff8a3d] transition-all duration-400" style={{ width: `${(currentIndex / ROUNDS) * 100}%` }}></div>
+          <div className="h-full rounded-full bg-gradient-to-r from-[#ffd23f] to-[#ff8a3d] transition-all duration-400" style={{ width: `${totalRondas ? (currentIndex / totalRondas) * 100 : 0}%` }}></div>
         </div>
       )}
     </div>
@@ -455,10 +464,12 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
       {/* Show Mode (Conocer) */}
       {mode === "show" && target && (
         <>
-          <div className="bg-white rounded-[26px] p-[22px_30px] text-center shadow-[0_6px_0_rgba(0,0,0,0.12)] mb-[22px] min-w-[min(90%,420px)] cursor-pointer" onClick={() => speak(target.palabra)}>
-            <div className="leading-[1.1]"><Visual p={target} size="grande" /></div>
-            <div className="text-[clamp(2.6rem,9vw,4rem)] font-bold text-brand-pink tracking-[2px]">{mostrar(target.palabra)}</div>
-            <div className="text-[1rem] text-[#888] mt-1.5">🔊 tocá la tarjeta para escucharla otra vez</div>
+          {/* Conocer: SOLO la palabra escrita, sin imagen. La idea es que asocie
+              la forma escrita con el sonido (lectura global), sin que el dibujo
+              le resuelva la palabra antes de mirarla. */}
+          <div className="bg-white rounded-[26px] p-[40px_30px] text-center shadow-[0_6px_0_rgba(0,0,0,0.12)] mb-[22px] min-w-[min(90%,420px)] cursor-pointer" onClick={() => speak(target.palabra)}>
+            <div className="text-[clamp(3rem,11vw,5rem)] font-bold text-brand-pink tracking-[2px]">{mostrar(target.palabra)}</div>
+            <div className="text-[1rem] text-[#888] mt-3">🔊 tocá la tarjeta para escucharla otra vez</div>
           </div>
           <button className="bg-brand-green text-white border-none rounded-[22px] p-[16px] text-[1.5rem] font-bold cursor-pointer shadow-[0_5px_0_rgba(0,0,0,0.18)] active:translate-y-1 active:shadow-none w-full max-w-[260px]" onClick={() => {
             setCurrentIndex(c => c + 1);
