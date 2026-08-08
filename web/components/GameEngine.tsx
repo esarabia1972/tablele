@@ -152,8 +152,10 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
     roundStartRef.current = Date.now();
     wrongChoicesRef.current = [];
 
-    // "Conocer" es puramente visual: no dice la palabra (el niño la lee).
-    if (mode === "listen" || mode === "silabas") {
+    // "Conocer" y "Armo la palabra" son visuales: no dictan la palabra al
+    // arrancar (el niño la lee). En "Armo la palabra" la voz llega al final,
+    // cuando la armó bien. "El Loro Dice" sí la dice: es su consigna.
+    if (mode === "listen") {
       later(() => speak(target.palabra), 400);
     }
   };
@@ -283,12 +285,15 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
       sndGood();
       const praiseMsg = withName(rand(PRAISE), nombre);
       setFeedback(`✅ ${praiseMsg}`);
-      speak(praiseMsg);
+      // Acá SÍ habla: dice la palabra completa recién armada (es el premio de
+      // haberla ordenado bien) y después el elogio.
+      speak(target.palabra);
+      later(() => speak(praiseMsg), 900);
 
       later(() => {
         setCurrentIndex(c => c + 1);
         setupRound(currentIndex + 1, seq, words);
-      }, 1400);
+      }, 2100);
     } else {
       sndBad();
       const retryMsg = rand(RETRY);
@@ -575,7 +580,9 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
                 sílabas: sin eso el juego deja de ser lectoescritura y pasa a ser
                 memoria auditiva pura, mucho más difícil para el público objetivo. */}
             <div className="text-[clamp(2.2rem,8vw,3.2rem)] font-bold text-brand-pink tracking-[2px]">{target.palabra}</div>
-            <div className="text-[0.85rem] text-[#888] mt-1">🔊 tocá la tarjeta para escucharla otra vez</div>
+            {/* Ya no dice "otra vez": la palabra no se dicta al arrancar.
+                Queda como ayuda opcional, si el niño la pide tocando. */}
+            <div className="text-[0.85rem] text-[#888] mt-1">🔊 tocá la tarjeta para escucharla</div>
           </div>
           <SilabasGame
             key={target.palabra}

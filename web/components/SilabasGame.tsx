@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { PalabraDefault } from "@/data/palabras-default";
-import { speak } from "@/lib/audio";
 
 interface SilabasGameProps {
   target: PalabraDefault;
@@ -166,7 +165,8 @@ export default function SilabasGame({ target, correctas, locked, hint, resetSign
       startY: e.clientY,
     };
     cloneElRef.current = crearClon(rect, tile.texto);
-    speak(tile.texto);
+    // No se dice la sílaba al agarrarla: el niño la lee. La voz aparece solo
+    // al final, diciendo la palabra completa cuando la armó bien.
     setDraggingId(tile.id);
   };
 
