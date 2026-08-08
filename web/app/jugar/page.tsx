@@ -2,17 +2,34 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { getSessionData, getStars, setStars, getConfig, addUso, expirarEstrellas, GOAL } from "@/lib/storage";
+import { getSessionData, getStars, setStars, getConfig, addUso, expirarEstrellas, esNivelSilabica, GOAL } from "@/lib/storage";
 import { syncFromServer } from "@/lib/sync";
+import { esElegibleSilabas } from "@/lib/silabas";
 import TopBar from "@/components/TopBar";
 import GameEngine from "@/components/GameEngine";
+
+// Etapa Silábica activa Y con al menos 2 palabras de más de una sílaba habilitadas.
+// F6: esElegibleSilabas() es la misma función que usan GameEngine y app/config,
+// así el override manual de p.silabas se respeta igual en los tres lugares.
+function calcularMostrarSilabas(): boolean {
+  const config = getConfig();
+  if (!esNivelSilabica(config.nivel)) return false;
+  const elegibles = config.palabras.filter((p) => p.usar && esElegibleSilabas(p));
+  return elegibles.length >= 2;
+}
 
 export default function JugarPage() {
   const router = useRouter();
   const [session, setSession] = useState<{ username: string; nombre: string } | null>(null);
   const [score, setScore] = useState(0);
   const [view, setView] = useState<"menu" | "game">("menu");
-  const [gameMode, setGameMode] = useState<"show" | "wp" | "pw" | "memo" | "listen">("show");
+  const [gameMode, setGameMode] = useState<"show" | "wp" | "pw" | "memo" | "listen" | "silabas">("show");
+  // No es state: getConfig() es una lectura síncrona de localStorage (barata),
+  // así que se recalcula en cada render en vez de duplicarla en un useState+effect
+  // (evita también el warning de "setState síncrono dentro de un efecto").
+  // Esto ya cubre "al volver al menú" y "cambiar de pestaña": cualquier
+  // re-render del componente (session, score, view) vuelve a leerla.
+  const mostrarSilabas = session ? calcularMostrarSilabas() : false;
 
   useEffect(() => {
     const s = getSessionData();
@@ -106,6 +123,19 @@ export default function JugarPage() {
               🦜
               <span className="text-xl mt-2 font-bold">El Loro Dice</span>
             </button>
+            {mostrarSilabas && (
+              // F3: col-span-2 (igual que "Conocer"). Con 5 botones (impar) uno
+              // solo, angosto, dejaba un hueco vacío al lado y rompía la grilla;
+              // el tamaño de fuente/emoji se ajusta igual que "Conocer" para que
+              // no quede desproporcionado siendo ancho.
+              <button
+                className="col-span-2 bg-[#2bb3a3] text-white border-none rounded-[32px] text-[5rem] p-[30px_0] cursor-pointer shadow-[0_5px_0_rgba(0,0,0,0.18)] transition-transform active:translate-y-1 active:shadow-none flex flex-col items-center justify-center leading-none"
+                onClick={() => { setGameMode("silabas"); setView("game"); }}
+              >
+                🧩
+                <span className="text-2xl mt-2 font-bold">Armo la Palabra</span>
+              </button>
+            )}
           </div>
         </div>
       )}

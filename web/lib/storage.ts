@@ -14,7 +14,7 @@ export type ConfigTablero = {
 // Un evento por cada intento de respuesta en los juegos
 export type Evento = {
   t: number;        // timestamp (ms)
-  juego: string;    // wp | pw | listen | memo
+  juego: string;    // wp | pw | listen | memo | silabas
   palabra: string;  // palabra objetivo
   elegida: string;  // qué eligió (para detectar confusiones)
   ok: boolean;
@@ -158,6 +158,15 @@ export function addUso(segundos: number) {
   }
   localStorage.setItem('tablele.uso', JSON.stringify(uso));
   schedulePush();
+}
+
+// Nombre de la etapa "Silábica" tal como se guarda en config.nivel
+export const NIVEL_SILABICA = "Silabica";
+
+// Compara sin tildes y case-insensitive: así "Silábica"/"Silabica"/"silabica"
+// configurados en distintos momentos siguen reconociéndose como la misma etapa.
+export function esNivelSilabica(nivel?: string): boolean {
+  return !!nivel && nivel.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().startsWith("silab");
 }
 
 export function clearMetricas() {

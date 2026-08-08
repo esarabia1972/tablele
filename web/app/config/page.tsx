@@ -3,9 +3,10 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import TopBar from "@/components/TopBar";
-import { getConfig, saveConfig, clearSessionData, getSessionData, ConfigTablero } from "@/lib/storage";
+import { getConfig, saveConfig, clearSessionData, getSessionData, ConfigTablero, NIVEL_SILABICA, esNivelSilabica } from "@/lib/storage";
 import { syncFromServer, flushPush } from "@/lib/sync";
 import { PALABRAS_DEFAULT, SUGERENCIAS_EMOJI, PalabraDefault } from "@/data/palabras-default";
+import { esElegibleSilabas } from "@/lib/silabas";
 
 // Reduce la foto a 512px máx. y la devuelve como JPEG base64
 async function comprimirImagen(file: File, max = 512): Promise<string> {
@@ -151,6 +152,13 @@ export default function ConfigPage() {
 
   if (!config) return null; // loading state
 
+  // Palabras activas con más de una sílaba: son las únicas jugables en "Armo la palabra".
+  // F6: esElegibleSilabas() es la misma función que usan GameEngine y app/jugar,
+  // así el override manual de p.silabas se respeta igual en los tres lugares.
+  const palabrasElegiblesSilabas = config.palabras.filter(
+    (p) => p.usar && esElegibleSilabas(p)
+  );
+
   return (
     <>
       <input
@@ -209,14 +217,33 @@ export default function ConfigPage() {
             <label className="block text-brand-blue font-bold mb-1">Etapa</label>
             <div className="flex gap-4">
               <label className="flex items-center gap-2 cursor-pointer">
-                <input type="radio" name="nivel" value="Global" checked readOnly className="w-5 h-5 accent-brand-blue" />
+                <input
+                  type="radio"
+                  name="nivel"
+                  value="Global"
+                  checked={!esNivelSilabica(config.nivel)}
+                  onChange={() => setConfig({ ...config, nivel: "Global" })}
+                  className="w-5 h-5 accent-brand-blue"
+                />
                 <span className="font-bold text-brand-dark">Global</span>
               </label>
-              <label className="flex items-center gap-2 opacity-50 cursor-not-allowed" title="Próximamente">
-                <input type="radio" name="nivel" value="Silabica" disabled className="w-5 h-5" />
-                <span className="font-bold text-gray-500">Silábica (próximamente)</span>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="nivel"
+                  value={NIVEL_SILABICA}
+                  checked={esNivelSilabica(config.nivel)}
+                  onChange={() => setConfig({ ...config, nivel: NIVEL_SILABICA })}
+                  className="w-5 h-5 accent-brand-blue"
+                />
+                <span className="font-bold text-brand-dark">Silábica</span>
               </label>
             </div>
+            {esNivelSilabica(config.nivel) && palabrasElegiblesSilabas.length < 2 && (
+              <p className="text-sm text-brand-pink mt-1.5">
+                Activá al menos 2 palabras de más de una sílaba para poder jugar &quot;Armo la palabra&quot;.
+              </p>
+            )}
           </div>
           <div className="mb-2">
             <label className="block text-brand-blue font-bold mb-1">Nivel</label>

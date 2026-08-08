@@ -4,6 +4,7 @@ export type PalabraDefault = {
   emoji: string;
   usar: boolean;
   foto?: string; // URL de foto real (reemplaza al emoji si está)
+  silabas?: string[]; // override manual, sin UI por ahora (si no está, se calcula con silabear())
 };
 
 export const PALABRAS_DEFAULT: PalabraDefault[] = [

@@ -26,7 +26,10 @@ function mediana(nums: number[]): number {
 function statsPorPalabra(): Map<string, StatPalabra> {
   const map = new Map<string, StatPalabra>();
   for (const e of getEventos()) {
-    if (e.juego === "memo") continue; // errar en memotest es memoria, no lectura
+    // Los eventos de "silabas" (Armo la Palabra) SÍ alimentan la ponderación:
+    // armar la palabra letra a letra es lectura, igual que wp/pw/listen.
+    // Solo se excluye "memo", porque ahí errar es memoria y no lectura.
+    if (e.juego === "memo") continue;
     const s = map.get(e.palabra) || {
       rondas: 0,
       primerOk: 0,

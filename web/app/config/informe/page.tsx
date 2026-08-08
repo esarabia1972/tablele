@@ -17,6 +17,7 @@ const JUEGOS: Record<string, string> = {
   pw: "🔍 Miro y Busco",
   listen: "🦜 El Loro Dice",
   memo: "🃏 Memotest",
+  silabas: "🧩 Armo la Palabra",
 };
 
 function fmtTiempo(seg: number): string {
@@ -97,8 +98,15 @@ export default function InformePage() {
     .sort((a, b) => a.pct - b.pct);
 
   // --- Confusiones (eligió otra palabra) ---
+  // F7: "silabas" (Armo la Palabra) NO participa acá. Su "elegida" es el orden
+  // de sílabas que armó (ej: "sa-ca"), no otra palabra del vocabulario: si se
+  // mezclara con el resto se le mostraría al adulto algo como "casa → eligió
+  // sa-ca", como si el chico hubiera leído otra palabra en vez de simplemente
+  // haber invertido el orden. Sí sigue sumando en "Por palabra" y "Por juego",
+  // donde ese dato es coherente (y en lib/seleccion.ts, sin tocar).
   const confusiones = new Map<string, number>();
   for (const e of lectura) {
+    if (e.juego === "silabas") continue;
     if (!e.ok && e.elegida && e.elegida !== e.palabra) {
       const k = `${e.palabra}→${e.elegida}`;
       confusiones.set(k, (confusiones.get(k) || 0) + 1);

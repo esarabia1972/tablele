@@ -5,6 +5,9 @@ import { getConfig, recordEvento, GOAL } from "@/lib/storage";
 import { elegirPalabras } from "@/lib/seleccion";
 import { PalabraDefault } from "@/data/palabras-default";
 import { speak, sndGood, sndBad, sndWin } from "@/lib/audio";
+import { silabasDe, esElegibleSilabas } from "@/lib/silabas";
+import Visual from "@/components/Visual";
+import SilabasGame from "@/components/SilabasGame";
 
 const ROUNDS = 6;
 const PRAISE = ['¡muy bien, manu!', '¡genial!', '¡excelente!', '¡sos un campeón!', '¡bravo!', '¡súper!'];
@@ -13,25 +16,6 @@ const PRAISE = ['¡muy bien, manu!', '¡genial!', '¡excelente!', '¡sos un camp
 const withName = (msg: string, nombre: string) =>
   nombre ? msg.replace('manu', nombre.toLowerCase()) : msg.replace(', manu', '');
 
-// Imagen de una palabra: foto real si la cargaron, si no el emoji
-const Visual = ({ p, size = "grande" }: { p: PalabraDefault; size?: "grande" | "opcion" | "memo" }) => {
-  if (p.foto) {
-    const cls =
-      size === "grande"
-        ? "mx-auto h-[clamp(7rem,28vw,11rem)] w-auto max-w-full rounded-2xl object-cover"
-        : size === "opcion"
-        ? "mx-auto h-[clamp(4.5rem,20vw,7rem)] w-full rounded-xl object-cover"
-        : "absolute inset-0 w-full h-full rounded-[16px] object-cover";
-    return <img src={p.foto} alt={p.palabra} className={cls} draggable={false} />;
-  }
-  const cls =
-    size === "grande"
-      ? "text-[clamp(4rem,16vw,6.5rem)] leading-[1.1]"
-      : size === "opcion"
-      ? "text-[3.4rem]"
-      : "text-[clamp(1.8rem,7vw,2.4rem)]";
-  return <span className={cls}>{p.emoji}</span>;
-};
 const RETRY = ['¡casi! probá otra vez', 'mmm... ¡intentá de nuevo!', '¡vos podés! otra vez'];
 
 const shuffle = <T,>(a: T[]): T[] => {
@@ -40,7 +24,7 @@ const shuffle = <T,>(a: T[]): T[] => {
 const rand = <T,>(a: T[]): T => a[Math.floor(Math.random() * a.length)];
 
 interface GameEngineProps {
-  mode: "show" | "wp" | "pw" | "memo" | "listen";
+  mode: "show" | "wp" | "pw" | "memo" | "listen" | "silabas";
   nombre: string;
   score: number;
   onAddStars: (n: number) => void;
@@ -56,7 +40,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
     nivelPalabra === "inicial" ? palabra.charAt(0) : palabra;
   const [seq, setSeq] = useState<PalabraDefault[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  
+
   // Game state
   const [errs, setErrs] = useState(0);
   const [options, setOptions] = useState<PalabraDefault[]>([]);
@@ -64,7 +48,10 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
   const [memoOpen, setMemoOpen] = useState<number[]>([]);
   const [memoMatched, setMemoMatched] = useState(0);
   const [locked, setLocked] = useState(false);
-  
+  // Se incrementa cada vez que hay que rearmar el tablero de "Armo la palabra"
+  // tras un error (misma ronda, sílabas mezcladas de nuevo).
+  const [resetSignal, setResetSignal] = useState(0);
+
   // Visual state
   const [feedback, setFeedback] = useState("");
   const [buttonStates, setButtonStates] = useState<Record<string, "correct" | "wrong" | "dim" | "hint" | "">>(Object.create(null));
@@ -100,10 +87,18 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
   const initGame = () => {
     clearTimers();
     const config = getConfig();
-    const activeWords = config.palabras.filter(w => w.usar);
+    let activeWords = config.palabras.filter(w => w.usar);
+    // "Armo la palabra" necesita palabras de más de una sílaba: con una sola
+    // sílaba no hay nada para ordenar (ver override p.silabas o silabear()).
+    // esElegibleSilabas() es la MISMA función que usan app/jugar y app/config
+    // para decidir si mostrar el botón/advertencia (F6: antes cada lugar tenía
+    // su propia versión del filtro y podían desincronizarse).
+    if (mode === "silabas") {
+      activeWords = activeWords.filter(esElegibleSilabas);
+    }
     setWords(activeWords);
     setNivelPalabra(config.nivelPalabra === "inicial" ? "inicial" : "intermedio");
-    
+
     if (activeWords.length === 0) return;
 
     if (mode === "memo") {
@@ -121,7 +116,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
       setCurrentIndex(0);
       setupRound(0, selectedSeq, activeWords);
     }
-    
+
     setFinished(false);
     setPrizeWon(false);
     setConfetti([]);
@@ -137,8 +132,13 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
       return;
     }
     const target = sequence[idx];
-    const others = shuffle(allWords.filter(x => x.palabra !== target.palabra)).slice(0, 2);
-    setOptions(shuffle([target, ...others]));
+    // "Armo la palabra" no usa opciones múltiples: se arma con arrastre en SilabasGame
+    if (mode !== "silabas") {
+      const others = shuffle(allWords.filter(x => x.palabra !== target.palabra)).slice(0, 2);
+      setOptions(shuffle([target, ...others]));
+    } else {
+      setOptions([]);
+    }
     setErrs(0);
     setButtonStates({});
     setFeedback("");
@@ -146,7 +146,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
     roundStartRef.current = Date.now();
     wrongChoicesRef.current = [];
 
-    if (mode === "show" || mode === "listen") {
+    if (mode === "show" || mode === "listen" || mode === "silabas") {
       later(() => speak(target.palabra), 400);
     }
   };
@@ -208,7 +208,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
       setLocked(true);
       setButtonStates(prev => ({ ...prev, [chosenOption.palabra]: "correct" }));
       sndGood();
-      
+
       const praiseMsg = withName(rand(PRAISE), nombre);
       setFeedback(`✅ ${praiseMsg}`);
       speak(praiseMsg);
@@ -249,13 +249,65 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
     }
   };
 
+  // Análoga a handleAnswer, pero para el arrastre de sílabas: SilabasGame ya
+  // entrega el orden armado (sin botón confirmar), acá solo se valida y se
+  // registra el evento igual que en los demás juegos de lectura.
+  const handleSilabasSubmit = (orden: string[]) => {
+    if (locked) return;
+    const target = seq[currentIndex];
+    // Si cargaron un override manual de sílabas (>=2), se usa ese; si no, silabear().
+    const correctas = silabasDe(target);
+    const ok = orden.length === correctas.length && orden.every((s, i) => s === correctas[i]);
+
+    recordEvento({
+      t: Date.now(),
+      juego: "silabas",
+      palabra: target.palabra,
+      elegida: orden.join("-"),
+      ok,
+      intento: errs + 1,
+      ms: Date.now() - roundStartRef.current,
+      ayuda: errs >= 2,
+    });
+
+    setLocked(true);
+
+    if (ok) {
+      sndGood();
+      const praiseMsg = withName(rand(PRAISE), nombre);
+      setFeedback(`✅ ${praiseMsg}`);
+      speak(praiseMsg);
+
+      later(() => {
+        setCurrentIndex(c => c + 1);
+        setupRound(currentIndex + 1, seq, words);
+      }, 1400);
+    } else {
+      sndBad();
+      const retryMsg = rand(RETRY);
+      setFeedback(`💪 ${retryMsg}`);
+      later(() => speak(retryMsg), 350);
+
+      const newErrs = errs + 1;
+      setErrs(newErrs);
+
+      // Tras el feedback, se rearma el tablero (SilabasGame mezcla de nuevo al
+      // detectar el cambio en resetSignal) y se desbloquea la interacción.
+      later(() => {
+        setResetSignal(n => n + 1);
+        setFeedback("");
+        setLocked(false);
+      }, 1800);
+    }
+  };
+
   const handleMemoClick = (idx: number) => {
     if (locked || memoCards[idx].flipped || memoOpen.includes(idx)) return;
-    
+
     // No decir la palabra al dar vuelta cartas: el niño tiene que leerla
     const newOpen = [...memoOpen, idx];
     setMemoOpen(newOpen);
-    
+
     if (newOpen.length === 2) {
       setLocked(true);
       const [idxA, idxB] = newOpen;
@@ -307,6 +359,13 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
     }
   };
 
+  if (mode === "silabas" && words.length < 2) {
+    return (
+      <div className="p-8 text-center text-xl text-brand-dark font-bold">
+        No hay suficientes palabras de más de una sílaba activadas.
+      </div>
+    );
+  }
   if (words.length === 0) return <div className="p-8 text-center text-xl text-brand-dark font-bold">No hay palabras activas en la configuración.</div>;
 
   if (prizeWon) {
@@ -370,7 +429,8 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
     wp: "📖 leo y busco el dibujo",
     pw: "🔍 miro y busco la palabra",
     memo: "🃏 buscá la palabra y su dibujo",
-    listen: "🦜 el loro dice..."
+    listen: "🦜 el loro dice...",
+    silabas: "🧩 armo la palabra"
   };
 
   const target = seq[currentIndex];
@@ -446,8 +506,8 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
           </div>
           <div className="grid grid-cols-1 gap-[24px] w-full max-w-[420px]">
             {options.map(o => (
-              <button 
-                key={o.palabra} 
+              <button
+                key={o.palabra}
                 onClick={() => handleAnswer(o)}
                 className={`bg-white border-none rounded-[22px] p-[18px] text-[clamp(1.7rem,6vw,2.3rem)] font-bold text-brand-dark tracking-[2px] cursor-pointer shadow-[0_5px_0_rgba(0,0,0,0.14)] font-inherit transition-transform active:translate-y-1 active:shadow-none
                   ${buttonStates[o.palabra] === 'correct' ? 'bg-brand-green text-white animate-pop' : ''}
@@ -473,8 +533,8 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
           </div>
           <div className="grid grid-cols-1 gap-[24px] w-full max-w-[420px]">
             {options.map(o => (
-              <button 
-                key={o.palabra} 
+              <button
+                key={o.palabra}
                 onClick={() => handleAnswer(o)}
                 className={`bg-white border-none rounded-[22px] p-[18px] text-[clamp(1.7rem,6vw,2.3rem)] font-bold text-brand-dark tracking-[2px] cursor-pointer shadow-[0_5px_0_rgba(0,0,0,0.14)] font-inherit transition-transform active:translate-y-1 active:shadow-none
                   ${buttonStates[o.palabra] === 'correct' ? 'bg-brand-green text-white animate-pop' : ''}
@@ -487,6 +547,35 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
               </button>
             ))}
           </div>
+          <div className="min-h-[2.2rem] text-[1.4rem] font-bold text-brand-dark mt-[16px] text-center">{feedback}</div>
+        </>
+      )}
+
+      {/* Mode Silabas: Armo la Palabra */}
+      {mode === "silabas" && target && (
+        <>
+          {/* Tarjeta más compacta que en los otros juegos: acá abajo van dos
+              bandejas de sílabas, y con el padding normal había que scrollear
+              en pantallas chicas para llegar a tocarlas. */}
+          <div className="bg-white rounded-[26px] p-[14px_24px] text-center shadow-[0_6px_0_rgba(0,0,0,0.12)] mb-[14px] min-w-[min(90%,420px)] cursor-pointer" onClick={() => speak(target.palabra)}>
+            <div className="leading-[1.1] [&>span]:text-[clamp(3rem,11vw,4.5rem)] [&>img]:h-[clamp(5rem,20vw,8rem)]"><Visual p={target} size="grande" /></div>
+            {/* F1: acá SIEMPRE se muestra la palabra completa (NO se usa mostrar(),
+                que en nivel "inicial" recorta a la primera letra). El niño necesita
+                el modelo completo por escrito para poder copiarlo ordenando las
+                sílabas: sin eso el juego deja de ser lectoescritura y pasa a ser
+                memoria auditiva pura, mucho más difícil para el público objetivo. */}
+            <div className="text-[clamp(2.2rem,8vw,3.2rem)] font-bold text-brand-pink tracking-[2px]">{target.palabra}</div>
+            <div className="text-[0.85rem] text-[#888] mt-1">🔊 tocá la tarjeta para escucharla otra vez</div>
+          </div>
+          <SilabasGame
+            key={target.palabra}
+            target={target}
+            correctas={silabasDe(target)}
+            locked={locked}
+            hint={errs >= 2}
+            resetSignal={resetSignal}
+            onSubmit={handleSilabasSubmit}
+          />
           <div className="min-h-[2.2rem] text-[1.4rem] font-bold text-brand-dark mt-[16px] text-center">{feedback}</div>
         </>
       )}
@@ -527,7 +616,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
           <div className="min-h-[2.2rem] text-[1.4rem] font-bold text-brand-dark mt-[16px] text-center">{feedback}</div>
         </>
       )}
-      
+
       {/* Ensure confetti renders correctly for modes */}
       {confetti.map(c => (
         <div key={c.id} className="fixed -top-5 text-[1.6rem] z-50 pointer-events-none animate-fall" style={{ left: c.left, animationDuration: c.dur, animationDelay: c.delay }}>{c.emoji}</div>
