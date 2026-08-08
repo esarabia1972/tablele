@@ -152,7 +152,8 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
     roundStartRef.current = Date.now();
     wrongChoicesRef.current = [];
 
-    if (mode === "show" || mode === "listen" || mode === "silabas") {
+    // "Conocer" es puramente visual: no dice la palabra (el niño la lee).
+    if (mode === "listen" || mode === "silabas") {
       later(() => speak(target.palabra), 400);
     }
   };
@@ -464,12 +465,10 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
       {/* Show Mode (Conocer) */}
       {mode === "show" && target && (
         <>
-          {/* Conocer: SOLO la palabra escrita, sin imagen. La idea es que asocie
-              la forma escrita con el sonido (lectura global), sin que el dibujo
-              le resuelva la palabra antes de mirarla. */}
-          <div className="bg-white rounded-[26px] p-[40px_30px] text-center shadow-[0_6px_0_rgba(0,0,0,0.12)] mb-[22px] min-w-[min(90%,420px)] cursor-pointer" onClick={() => speak(target.palabra)}>
+          {/* Conocer: SOLO la palabra escrita, sin imagen y sin audio.
+              El niño la lee: ni el dibujo ni la voz se la resuelven antes. */}
+          <div className="bg-white rounded-[26px] p-[52px_30px] text-center shadow-[0_6px_0_rgba(0,0,0,0.12)] mb-[22px] min-w-[min(90%,420px)] pointer-events-none">
             <div className="text-[clamp(3rem,11vw,5rem)] font-bold text-brand-pink tracking-[2px]">{mostrar(target.palabra)}</div>
-            <div className="text-[1rem] text-[#888] mt-3">🔊 tocá la tarjeta para escucharla otra vez</div>
           </div>
           <button className="bg-brand-green text-white border-none rounded-[22px] p-[16px] text-[1.5rem] font-bold cursor-pointer shadow-[0_5px_0_rgba(0,0,0,0.18)] active:translate-y-1 active:shadow-none w-full max-w-[260px]" onClick={() => {
             setCurrentIndex(c => c + 1);
