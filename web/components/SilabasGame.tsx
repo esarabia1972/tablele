@@ -265,13 +265,37 @@ export default function SilabasGame({ target, correctas, locked, hint, resetSign
       ? trayTiles.find((t) => t.texto === correctas[proximaVaciaIdx])?.id ?? null
       : null;
 
+  // Orden en pantalla: tarjeta (arriba, la pone el padre) → sílabas mezcladas
+  // → cajas destino. Las sílabas van pegadas a la tarjeta para que el niño
+  // las vea junto al modelo escrito y arrastre hacia abajo, no hacia arriba.
+  const tray = (
+    // min-h fijo: al ir sacando sílabas la bandeja no se encoge, así las cajas
+    // de abajo no se mueven de lugar mientras el niño está arrastrando.
+    <div className="flex flex-wrap justify-center content-center gap-6 sm:gap-8 w-full max-w-[560px] min-h-[96px] px-2 py-3 rounded-[26px] bg-white/60">
+      {trayTiles.map((tile) => (
+        <div
+          key={tile.id}
+          onPointerDown={(e) => onTilePointerDown(tile, e)}
+          onPointerMove={onTilePointerMove}
+          onPointerUp={(e) => onTilePointerUp(tile, e)}
+          onPointerCancel={onTilePointerCancel}
+          aria-label={tile.texto}
+          className={`touch-none select-none min-w-[72px] min-h-[72px] rounded-[22px] bg-white shadow-[0_5px_0_rgba(0,0,0,0.14)] flex items-center justify-center px-3 text-[clamp(1.6rem,6vw,2rem)] font-bold text-brand-dark cursor-grab
+            ${draggingId === tile.id ? "opacity-30" : ""}
+            ${idTileConPista === tile.id ? "animate-glow" : ""}
+          `}
+        >
+          {tile.texto}
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <>
-      {/* F4: cada zona va en su propia "bandeja" con fondo sutil + un ícono
-          chico (sin texto largo: muchos niños todavía no leen) para que se
-          note de un vistazo cuál es la zona de armado y cuál la de elegir. */}
-      <div className="flex flex-col items-center gap-2 w-full">
-        <span className="text-xl opacity-40" aria-hidden="true">🧩</span>
+      {tray}
+
+      <div className="flex flex-col items-center w-full mt-6 sm:mt-10">
         <div
           ref={slotsContainerRef}
           className={`flex flex-wrap justify-center gap-6 sm:gap-8 w-full max-w-[560px] px-2 py-3 rounded-[26px] bg-white/25 ${
@@ -299,31 +323,6 @@ export default function SilabasGame({ target, correctas, locked, hint, resetSign
               </div>
             );
           })}
-        </div>
-      </div>
-
-      {/* mt-6 en pantallas chicas y mt-10 desde sm: en un teléfono, sumar la
-          palabra completa + las dos bandejas obligaba a scrollear para ver
-          las sílabas, que es justo lo que el niño necesita tocar. */}
-      <div className="flex flex-col items-center gap-2 w-full mt-6 sm:mt-10">
-        <span className="text-xl opacity-40" aria-hidden="true">✋</span>
-        <div className="flex flex-wrap justify-center gap-6 sm:gap-8 w-full max-w-[560px] px-2 py-3 rounded-[26px] bg-white/60">
-          {trayTiles.map((tile) => (
-            <div
-              key={tile.id}
-              onPointerDown={(e) => onTilePointerDown(tile, e)}
-              onPointerMove={onTilePointerMove}
-              onPointerUp={(e) => onTilePointerUp(tile, e)}
-              onPointerCancel={onTilePointerCancel}
-              aria-label={tile.texto}
-              className={`touch-none select-none min-w-[72px] min-h-[72px] rounded-[22px] bg-white shadow-[0_5px_0_rgba(0,0,0,0.14)] flex items-center justify-center px-3 text-[clamp(1.6rem,6vw,2rem)] font-bold text-brand-dark cursor-grab
-                ${draggingId === tile.id ? "opacity-30" : ""}
-                ${idTileConPista === tile.id ? "animate-glow" : ""}
-              `}
-            >
-              {tile.texto}
-            </div>
-          ))}
         </div>
       </div>
     </>
