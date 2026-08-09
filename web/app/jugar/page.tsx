@@ -8,6 +8,13 @@ import { esElegibleSilabas } from "@/lib/silabas";
 import TopBar from "@/components/TopBar";
 import GameEngine from "@/components/GameEngine";
 
+// Botones del menú: alto y tipografía atados a la altura de pantalla para que
+// las 4 filas entren sin scroll incluso en un celular chico.
+const BTN =
+  "text-white border-none rounded-[32px] p-[clamp(10px,2vh,28px)_0] cursor-pointer shadow-[0_5px_0_rgba(0,0,0,0.18)] transition-transform active:translate-y-1 active:shadow-none flex flex-col items-center justify-center leading-none";
+const EMOJI = "text-[clamp(2.2rem,7vh,4rem)] leading-none";
+const LABEL = "text-[clamp(1rem,2.2vh,1.5rem)] mt-[clamp(4px,0.8vh,10px)] font-bold";
+
 // Etapa Silábica activa Y con al menos 2 palabras de más de una sílaba habilitadas.
 // F6: esElegibleSilabas() es la misma función que usan GameEngine y app/config,
 // así el override manual de p.silabas se respeta igual en los tres lugares.
@@ -86,54 +93,56 @@ export default function JugarPage() {
       />
       
       {view === "menu" && (
-        <div className="flex-1 flex flex-col items-center w-full max-w-[600px] mt-[4vh]">
-          <div className="grid grid-cols-2 gap-[22px] w-full px-4">
-            <button 
-              className="col-span-2 bg-[#4d9de0] text-white border-none rounded-[32px] text-[5rem] p-[30px_0] cursor-pointer shadow-[0_5px_0_rgba(0,0,0,0.18)] transition-transform active:translate-y-1 active:shadow-none flex flex-col items-center justify-center leading-none"
+        <div className="flex-1 flex flex-col items-center w-full max-w-[600px] mt-[2vh]">
+          {/* Todo el menú tiene que entrar SIN scroll, también en un teléfono
+              con el juego de sílabas activo (6 botones = 4 filas). Por eso los
+              tamaños son relativos a la altura de pantalla (vh) con clamp:
+              en una tablet se ven grandes y en un celular se comprimen solos. */}
+          <div className="grid grid-cols-2 gap-[clamp(10px,1.6vh,22px)] w-full px-4">
+            <button
+              className={`col-span-2 bg-[#4d9de0] ${BTN}`}
               onClick={() => { setGameMode("show"); setView("game"); }}
             >
-              👀
-              <span className="text-2xl mt-2 font-bold">Conocer</span>
+              <span className={EMOJI}>👀</span>
+              <span className={LABEL}>Conocer</span>
             </button>
-            <button 
-              className="bg-brand-orange text-white border-none rounded-[32px] text-[4rem] p-[30px_0] cursor-pointer shadow-[0_5px_0_rgba(0,0,0,0.18)] transition-transform active:translate-y-1 active:shadow-none flex flex-col items-center justify-center leading-none"
+            <button
+              className={`bg-brand-orange ${BTN}`}
               onClick={() => { setGameMode("wp"); setView("game"); }}
             >
-              📖
-              <span className="text-xl mt-2 font-bold">Leo y Busco</span>
+              <span className={EMOJI}>📖</span>
+              <span className={LABEL}>Leo y Busco</span>
             </button>
-            <button 
-              className="bg-brand-green text-white border-none rounded-[32px] text-[4rem] p-[30px_0] cursor-pointer shadow-[0_5px_0_rgba(0,0,0,0.18)] transition-transform active:translate-y-1 active:shadow-none flex flex-col items-center justify-center leading-none"
+            <button
+              className={`bg-brand-green ${BTN}`}
               onClick={() => { setGameMode("pw"); setView("game"); }}
             >
-              🔍
-              <span className="text-xl mt-2 font-bold">Miro y Busco</span>
+              <span className={EMOJI}>🔍</span>
+              <span className={LABEL}>Miro y Busco</span>
             </button>
-            <button 
-              className="bg-brand-purple text-white border-none rounded-[32px] text-[4rem] p-[30px_0] cursor-pointer shadow-[0_5px_0_rgba(0,0,0,0.18)] transition-transform active:translate-y-1 active:shadow-none flex flex-col items-center justify-center leading-none"
+            <button
+              className={`bg-brand-purple ${BTN}`}
               onClick={() => { setGameMode("memo"); setView("game"); }}
             >
-              🃏
-              <span className="text-xl mt-2 font-bold">Memotest</span>
+              <span className={EMOJI}>🃏</span>
+              <span className={LABEL}>Memotest</span>
             </button>
-            <button 
-              className="bg-[#e0508e] text-white border-none rounded-[32px] text-[4rem] p-[30px_0] cursor-pointer shadow-[0_5px_0_rgba(0,0,0,0.18)] transition-transform active:translate-y-1 active:shadow-none flex flex-col items-center justify-center leading-none"
+            <button
+              className={`bg-[#e0508e] ${BTN}`}
               onClick={() => { setGameMode("listen"); setView("game"); }}
             >
-              🦜
-              <span className="text-xl mt-2 font-bold">El Loro Dice</span>
+              <span className={EMOJI}>🦜</span>
+              <span className={LABEL}>El Loro Dice</span>
             </button>
             {mostrarSilabas && (
               // F3: col-span-2 (igual que "Conocer"). Con 5 botones (impar) uno
-              // solo, angosto, dejaba un hueco vacío al lado y rompía la grilla;
-              // el tamaño de fuente/emoji se ajusta igual que "Conocer" para que
-              // no quede desproporcionado siendo ancho.
+              // quedaba solo y angosto, dejando un hueco vacío al lado.
               <button
-                className="col-span-2 bg-[#2bb3a3] text-white border-none rounded-[32px] text-[5rem] p-[30px_0] cursor-pointer shadow-[0_5px_0_rgba(0,0,0,0.18)] transition-transform active:translate-y-1 active:shadow-none flex flex-col items-center justify-center leading-none"
+                className={`col-span-2 bg-[#2bb3a3] ${BTN}`}
                 onClick={() => { setGameMode("silabas"); setView("game"); }}
               >
-                🧩
-                <span className="text-2xl mt-2 font-bold">Armo la Palabra</span>
+                <span className={EMOJI}>🧩</span>
+                <span className={LABEL}>Armo la Palabra</span>
               </button>
             )}
           </div>

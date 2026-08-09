@@ -54,6 +54,10 @@ body {
   flex-direction: column;
   align-items: center;
   min-height: 100vh;
+  /* En iOS/Safari 100vh es más alto que el área visible (no descuenta las
+     barras del navegador), y eso solo hacía aparecer scroll. dvh usa la
+     altura real; queda después de 100vh como fallback para navegadores viejos. */
+  min-height: 100dvh;
   overflow-x: hidden;
   user-select: none;
   -webkit-user-select: none;
