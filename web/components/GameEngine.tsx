@@ -515,13 +515,15 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
       {/* Mode PW: Picture -> Word */}
       {mode === "pw" && target && (
         <>
-          {/* mb igual al gap de las opciones: todas las separaciones parejas,
-              así ninguna opción "se pega" a la imagen ni a la de al lado. */}
-          <div className="bg-white rounded-[26px] p-[22px_30px] text-center shadow-[0_6px_0_rgba(0,0,0,0.12)] mb-[28px] min-w-[min(90%,420px)] cursor-pointer pointer-events-none">
+          {/* Más aire entre la imagen y la primera opción que entre opciones */}
+          <div className="bg-white rounded-[26px] p-[22px_30px] text-center shadow-[0_6px_0_rgba(0,0,0,0.12)] mb-[36px] min-w-[min(90%,420px)] cursor-pointer pointer-events-none">
              {/* SPEC rule 7.2: NO audio on tap for picture in pw */}
             <div className="leading-[1.1]"><Visual p={target} size="grande" /></div>
           </div>
-          <div className="grid grid-cols-1 gap-[28px] w-full max-w-[420px]">
+          {/* flex-1 + justify-between: las opciones se reparten TODA la altura
+              libre en vez de quedar apiladas arriba con un hueco muerto abajo.
+              El gap actúa de mínimo, así en pantallas cortas no se pegan. */}
+          <div className="flex flex-col flex-1 justify-between gap-[28px] w-full max-w-[420px]">
             {options.map(o => (
               <button
                 key={o.palabra}
@@ -544,12 +546,13 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
       {/* Mode Listen: Loro dice */}
       {mode === "listen" && target && (
         <>
-          {/* mb igual al gap de las opciones: separaciones parejas */}
-          <div className="bg-white rounded-[26px] p-[22px_30px] text-center shadow-[0_6px_0_rgba(0,0,0,0.12)] mb-[28px] min-w-[min(90%,420px)] cursor-pointer" onClick={() => speak(target.palabra)}>
+          {/* Más aire entre el loro y la primera opción que entre opciones */}
+          <div className="bg-white rounded-[26px] p-[22px_30px] text-center shadow-[0_6px_0_rgba(0,0,0,0.12)] mb-[36px] min-w-[min(90%,420px)] cursor-pointer" onClick={() => speak(target.palabra)}>
             <div className="text-[clamp(4rem,16vw,6.5rem)] leading-[1.1]">🦜</div>
             <div className="text-[1rem] text-[#888] mt-1.5">🔊 tocá al loro para escuchar la palabra otra vez</div>
           </div>
-          <div className="grid grid-cols-1 gap-[28px] w-full max-w-[420px]">
+          {/* flex-1 + justify-between: las opciones ocupan toda la altura libre */}
+          <div className="flex flex-col flex-1 justify-between gap-[28px] w-full max-w-[420px]">
             {options.map(o => (
               <button
                 key={o.palabra}
