@@ -548,8 +548,10 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
         <>
           {/* Más aire entre el loro y la primera opción que entre opciones */}
           <div className="bg-white rounded-[26px] p-[22px_30px] text-center shadow-[0_6px_0_rgba(0,0,0,0.12)] mb-[36px] min-w-[min(90%,420px)] cursor-pointer" onClick={() => speak(target.palabra)}>
+            {/* Sin leyenda: la tarjeta queda igual que la de "Miro y Busco".
+                Tocar al loro sigue repitiendo la palabra (es la única forma de
+                volver a escucharla), solo que ya no se explica por escrito. */}
             <div className="text-[clamp(4rem,16vw,6.5rem)] leading-[1.1]">🦜</div>
-            <div className="text-[1rem] text-[#888] mt-1.5">🔊 tocá al loro para escuchar la palabra otra vez</div>
           </div>
           {/* flex-1 + justify-between: las opciones ocupan toda la altura libre */}
           <div className="flex flex-col flex-1 justify-between gap-[28px] w-full max-w-[420px]">
