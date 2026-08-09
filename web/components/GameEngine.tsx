@@ -515,11 +515,13 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
       {/* Mode PW: Picture -> Word */}
       {mode === "pw" && target && (
         <>
-          <div className="bg-white rounded-[26px] p-[22px_30px] text-center shadow-[0_6px_0_rgba(0,0,0,0.12)] mb-[22px] min-w-[min(90%,420px)] cursor-pointer pointer-events-none">
+          {/* mb igual al gap de las opciones: todas las separaciones parejas,
+              así ninguna opción "se pega" a la imagen ni a la de al lado. */}
+          <div className="bg-white rounded-[26px] p-[22px_30px] text-center shadow-[0_6px_0_rgba(0,0,0,0.12)] mb-[28px] min-w-[min(90%,420px)] cursor-pointer pointer-events-none">
              {/* SPEC rule 7.2: NO audio on tap for picture in pw */}
             <div className="leading-[1.1]"><Visual p={target} size="grande" /></div>
           </div>
-          <div className="grid grid-cols-1 gap-[24px] w-full max-w-[420px]">
+          <div className="grid grid-cols-1 gap-[28px] w-full max-w-[420px]">
             {options.map(o => (
               <button
                 key={o.palabra}
@@ -542,11 +544,12 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
       {/* Mode Listen: Loro dice */}
       {mode === "listen" && target && (
         <>
-          <div className="bg-white rounded-[26px] p-[22px_30px] text-center shadow-[0_6px_0_rgba(0,0,0,0.12)] mb-[22px] min-w-[min(90%,420px)] cursor-pointer" onClick={() => speak(target.palabra)}>
+          {/* mb igual al gap de las opciones: separaciones parejas */}
+          <div className="bg-white rounded-[26px] p-[22px_30px] text-center shadow-[0_6px_0_rgba(0,0,0,0.12)] mb-[28px] min-w-[min(90%,420px)] cursor-pointer" onClick={() => speak(target.palabra)}>
             <div className="text-[clamp(4rem,16vw,6.5rem)] leading-[1.1]">🦜</div>
             <div className="text-[1rem] text-[#888] mt-1.5">🔊 tocá al loro para escuchar la palabra otra vez</div>
           </div>
-          <div className="grid grid-cols-1 gap-[24px] w-full max-w-[420px]">
+          <div className="grid grid-cols-1 gap-[28px] w-full max-w-[420px]">
             {options.map(o => (
               <button
                 key={o.palabra}
@@ -569,17 +572,16 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
       {/* Mode Silabas: Armo la Palabra */}
       {mode === "silabas" && target && (
         <>
-          {/* Tarjeta más compacta que en los otros juegos: acá abajo van dos
-              bandejas de sílabas, y con el padding normal había que scrollear
-              en pantallas chicas para llegar a tocarlas. */}
-          <div className="bg-white rounded-[26px] p-[14px_24px] text-center shadow-[0_6px_0_rgba(0,0,0,0.12)] mb-[14px] min-w-[min(90%,420px)] cursor-pointer" onClick={() => speak(target.palabra)}>
-            <div className="leading-[1.1] [&>span]:text-[clamp(3rem,11vw,4.5rem)] [&>img]:h-[clamp(5rem,20vw,8rem)]"><Visual p={target} size="grande" /></div>
-            {/* F1: acá SIEMPRE se muestra la palabra completa (NO se usa mostrar(),
+          {/* Sin dibujo de ayuda: solo la palabra escrita, que es el modelo que
+              tiene que copiar ordenando las sílabas. Tarjeta compacta porque
+              abajo van las dos bandejas y en pantallas chicas no entraba. */}
+          <div className="bg-white rounded-[26px] p-[20px_24px] text-center shadow-[0_6px_0_rgba(0,0,0,0.12)] mb-[14px] min-w-[min(90%,420px)] cursor-pointer" onClick={() => speak(target.palabra)}>
+            {/* Acá SIEMPRE se muestra la palabra completa (NO se usa mostrar(),
                 que en nivel "inicial" recorta a la primera letra). El niño necesita
                 el modelo completo por escrito para poder copiarlo ordenando las
                 sílabas: sin eso el juego deja de ser lectoescritura y pasa a ser
                 memoria auditiva pura, mucho más difícil para el público objetivo. */}
-            <div className="text-[clamp(2.2rem,8vw,3.2rem)] font-bold text-brand-pink tracking-[2px]">{target.palabra}</div>
+            <div className="text-[clamp(2.6rem,9vw,3.8rem)] font-bold text-brand-pink tracking-[2px]">{target.palabra}</div>
             {/* Ya no dice "otra vez": la palabra no se dicta al arrancar.
                 Queda como ayuda opcional, si el niño la pide tocando. */}
             <div className="text-[0.85rem] text-[#888] mt-1">🔊 tocá la tarjeta para escucharla</div>
@@ -600,7 +602,9 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
       {/* Mode Memo: Memotest */}
       {mode === "memo" && (
         <>
-          <div className="grid grid-cols-4 gap-[12px] w-full max-w-[500px] px-1">
+          {/* 3 columnas x 4 filas (antes 4x3): con 12 cartas, menos columnas =
+              fichas más grandes y más fáciles de tocar. */}
+          <div className="grid grid-cols-3 gap-[14px] w-full max-w-[420px] px-1">
             {memoCards.map((c, idx) => {
               const isOpen = memoOpen.includes(idx);
               const isMatched = memoMatched > 0 && !memoOpen.includes(idx) && false; // We track match via class? Wait, we can track matched indices!
@@ -611,7 +615,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
               return (
                 <div key={idx} className={`aspect-[3/3.8] [perspective:600px] cursor-pointer ${isOpen || c.matched ? '[&>div]:[transform:rotateY(180deg)]' : ''}`} onClick={() => handleMemoClick(idx)}>
                   <div className="w-full h-full relative [transform-style:preserve-3d] transition-transform duration-400">
-                    <div className="absolute inset-0 [backface-visibility:hidden] rounded-[16px] flex items-center justify-center text-center shadow-[0_4px_0_rgba(0,0,0,0.14)] p-1 bg-gradient-to-br from-[#4d9de0] to-[#7ec8ff] text-[2rem]">
+                    <div className="absolute inset-0 [backface-visibility:hidden] rounded-[16px] flex items-center justify-center text-center shadow-[0_4px_0_rgba(0,0,0,0.14)] p-1 bg-gradient-to-br from-[#4d9de0] to-[#7ec8ff] text-[2.6rem]">
                       ❓
                     </div>
                     <div className={`absolute inset-0 [backface-visibility:hidden] rounded-[16px] flex items-center justify-center text-center shadow-[0_4px_0_rgba(0,0,0,0.14)] p-1 [transform:rotateY(180deg)] ${c.matched ? 'bg-[#d2f5df] outline outline-3 outline-[#3dbf6e]' : 'bg-white'}`}>
@@ -622,7 +626,7 @@ export default function GameEngine({ mode, nombre, score, onAddStars, onBackToMe
                           <span className="text-[clamp(1.8rem,7vw,2.4rem)]">{c.show}</span>
                         )
                       ) : (
-                        <span className={`font-bold text-brand-pink tracking-[1px] break-all ${nivelPalabra === "inicial" ? "text-[clamp(1.6rem,6vw,2.2rem)]" : "text-[clamp(0.8rem,3vw,1.15rem)]"}`}>{mostrar(c.show)}</span>
+                        <span className={`font-bold text-brand-pink tracking-[1px] break-all ${nivelPalabra === "inicial" ? "text-[clamp(2rem,8vw,2.8rem)]" : "text-[clamp(1rem,4vw,1.5rem)]"}`}>{mostrar(c.show)}</span>
                       )}
                     </div>
                   </div>
