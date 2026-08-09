@@ -6,6 +6,9 @@
 //
 // No forma parte del build ni del deploy. Sale con código 1 si algo falla,
 // así también sirve para un hook de pre-commit o un paso de CI.
+//
+// Está excluido de tsconfig.json: los imports llevan extensión .ts porque
+// Node la exige, y eso a tsc no le gusta (TS5097).
 
 import { CASOS } from "./silabas.test.ts";
 import { silabear } from "./silabas.ts";

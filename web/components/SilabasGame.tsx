@@ -99,6 +99,10 @@ export default function SilabasGame({ target, correctas, locked, hint, resetSign
     setTiles((prev) => prev.map((t) => (t.id === id ? { ...t, slotIdx: idx } : t)));
   };
 
+  const sacarDeCaja = (id: string) => {
+    setTiles((prev) => prev.map((t) => (t.id === id ? { ...t, slotIdx: null } : t)));
+  };
+
   const colocarEnPrimeraVacia = (id: string) => {
     const ocupados = new Set(tiles.filter((t) => t.slotIdx !== null).map((t) => t.slotIdx));
     let idx = -1;
@@ -196,8 +200,11 @@ export default function SilabasGame({ target, correctas, locked, hint, resetSign
     finalizarDrag();
 
     if (distancia < TAP_UMBRAL_PX) {
-      // Tap: va a la primera caja vacía (más fácil para nenes chiquitos)
-      colocarEnPrimeraVacia(tile.id);
+      // Tap: si la sílaba ya está en una caja, vuelve a la bandeja (así puede
+      // corregirse antes de completar); si está en la bandeja, va a la primera
+      // caja vacía (más fácil para nenes chiquitos que no logran arrastrar).
+      if (tile.slotIdx !== null) sacarDeCaja(tile.id);
+      else colocarEnPrimeraVacia(tile.id);
       return;
     }
 
@@ -210,10 +217,14 @@ export default function SilabasGame({ target, correctas, locked, hint, resetSign
     const cajas = slotsContainerRef.current?.querySelectorAll<HTMLElement>("[data-slot-idx]");
     if (cajas) {
       for (const caja of Array.from(cajas)) {
-        // Solo compiten las cajas VACÍAS: si no, una caja llena pegada a una
-        // vacía podía "ganar" por estar más cerca del centro y el drop se
-        // descartaba, aunque había una caja válida al alcance del dedo.
-        if (tiles.some((t) => t.slotIdx === Number(caja.dataset.slotIdx))) continue;
+        // Solo compiten las cajas VACÍAS (más la propia, si viene de una caja:
+        // soltarla donde estaba tiene que dejarla ahí, no mandarla a la
+        // bandeja). Si no, una caja llena pegada a una vacía podía "ganar" por
+        // estar más cerca del centro y el drop se descartaba, aunque había una
+        // caja válida al alcance del dedo.
+        const idxCaja = Number(caja.dataset.slotIdx);
+        const ocupadaPorOtro = tiles.some((t) => t.slotIdx === idxCaja && t.id !== tile.id);
+        if (ocupadaPorOtro) continue;
         const r = caja.getBoundingClientRect();
         // F9: margen de tolerancia de ~14px en los 4 lados. Un niño con
         // motricidad imprecisa que suelta un poco afuera de la caja igual
@@ -232,15 +243,19 @@ export default function SilabasGame({ target, correctas, locked, hint, resetSign
         const distancia = Math.hypot(punto.x - cx, punto.y - cy);
         if (distancia < mejorDistancia) {
           mejorDistancia = distancia;
-          idxDestino = Number(caja.dataset.slotIdx);
+          idxDestino = idxCaja;
         }
       }
     }
 
     if (idxDestino >= 0) {
       colocar(tile.id, idxDestino);
+    } else if (tile.slotIdx !== null) {
+      // Arrastró una sílaba ya colocada y la soltó fuera de las cajas:
+      // se interpreta como "sacala", vuelve a la bandeja.
+      sacarDeCaja(tile.id);
     }
-    // Si no soltó sobre ninguna caja vacía, el tile queda en el tray tal cual.
+    // Si venía de la bandeja y no acertó ninguna caja, queda donde estaba.
   };
 
   const onTilePointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -305,11 +320,24 @@ export default function SilabasGame({ target, correctas, locked, hint, resetSign
           {Array.from({ length: correctas.length }, (_, i) => {
             const colocado = tiles.find((t) => t.slotIdx === i);
             return (
+              // Una sílaba ya colocada se puede tocar (vuelve a la bandeja) o
+              // arrastrar a otra caja: el niño tiene que poder corregirse antes
+              // de completar, sin que el tablero se le trabe.
               <div
                 key={i}
                 data-slot-idx={i}
-                aria-label={colocado ? `casilla ${i + 1}: ${colocado.texto}` : `casilla ${i + 1} vacía`}
+                aria-label={
+                  colocado
+                    ? `casilla ${i + 1}: ${colocado.texto} — tocá para sacarla`
+                    : `casilla ${i + 1} vacía`
+                }
+                onPointerDown={colocado ? (e) => onTilePointerDown(colocado, e) : undefined}
+                onPointerMove={colocado ? onTilePointerMove : undefined}
+                onPointerUp={colocado ? (e) => onTilePointerUp(colocado, e) : undefined}
+                onPointerCancel={colocado ? onTilePointerCancel : undefined}
                 className={`min-w-[72px] min-h-[72px] rounded-[22px] flex items-center justify-center px-2 text-[clamp(1.6rem,6vw,2rem)] font-bold text-brand-dark
+                  ${colocado ? "touch-none select-none cursor-grab" : ""}
+                  ${draggingId && colocado?.id === draggingId ? "opacity-30" : ""}
                   ${
                     esCorrecto
                       ? "bg-brand-green text-white animate-pop"
