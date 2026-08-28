@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import TopBar from "@/components/TopBar";
 import {
   getEventos,
@@ -40,6 +41,7 @@ function colorPct(p: number): string {
 }
 
 export default function InformePage() {
+  const router = useRouter();
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [uso, setUso] = useState<Record<string, number>>({});
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -48,12 +50,17 @@ export default function InformePage() {
 
   useEffect(() => {
     const s = getSessionData();
+    // Sin sesión no hay informe que mostrar: antes leía la clave compartida.
+    if (!s) {
+      router.replace("/");
+      return;
+    }
     (async () => {
-      if (s) await syncFromServer(s.username);
+      await syncFromServer(s.username);
       setEventos(getEventos());
       setUso(getUso());
     })();
-  }, []);
+  }, [router]);
 
   // --- Tiempo de uso ---
   const hoy = fechaLocal();

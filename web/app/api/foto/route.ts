@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { USERNAME_RE } from "@/lib/claves";
 
 // Sube una foto (base64) a Supabase Storage (bucket público "fotos")
 // y devuelve la URL pública.
@@ -13,7 +14,6 @@ const SB_URL = (() => {
   }
 })();
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
 const BUCKET = "fotos";
 
 export async function POST(request: Request) {

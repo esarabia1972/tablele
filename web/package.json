@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "npm run test:silabas && npm run test:datos && npm run test:usuarios",
+    "test:silabas": "node --experimental-strip-types lib/silabas.run-tests.ts",
+    "test:datos": "node --experimental-strip-types lib/datos.run-tests.ts",
+    "test:usuarios": "node --experimental-strip-types --import ./lib/test/registrar.mjs lib/sync.run-tests.ts"
   },
   "dependencies": {
     "next": "16.2.10",

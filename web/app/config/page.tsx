@@ -3,9 +3,18 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import TopBar from "@/components/TopBar";
-import { getConfig, saveConfig, clearSessionData, getSessionData, ConfigTablero, NIVEL_SILABICA, esNivelSilabica } from "@/lib/storage";
-import { syncFromServer, flushPush } from "@/lib/sync";
-import { PALABRAS_DEFAULT, SUGERENCIAS_EMOJI, PalabraDefault } from "@/data/palabras-default";
+import {
+  getConfig,
+  saveConfig,
+  clearSessionData,
+  getSessionData,
+  limpiarDatosLocales,
+  ConfigTablero,
+  NIVEL_SILABICA,
+  esNivelSilabica,
+} from "@/lib/storage";
+import { syncFromServer, flushPush, cerrarSesionSync } from "@/lib/sync";
+import { palabrasDefault, SUGERENCIAS_EMOJI } from "@/data/palabras-default";
 import { esElegibleSilabas } from "@/lib/silabas";
 
 // Reduce la foto a 512px máx. y la devuelve como JPEG base64
@@ -33,16 +42,27 @@ export default function ConfigPage() {
   const router = useRouter();
   const [config, setConfig] = useState<ConfigTablero | null>(null);
   const [subiendo, setSubiendo] = useState<string | null>(null); // letra en proceso
+  const [guardando, setGuardando] = useState(false);
+  const [aviso, setAviso] = useState("");
+  const [salirOpen, setSalirOpen] = useState(false);
+  const [usuario, setUsuario] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const letraFotoRef = useRef<string>("");
 
   useEffect(() => {
     const s = getSessionData();
+    // Sin sesión no se entra: antes esta pantalla leía y escribía en la clave
+    // compartida sin usuario, y esa config terminaba siendo de otro chico.
+    if (!s) {
+      router.replace("/");
+      return;
+    }
     (async () => {
-      if (s) await syncFromServer(s.username);
+      setUsuario(s.username);
+      await syncFromServer(s.username);
       setConfig(getConfig());
     })();
-  }, []);
+  }, [router]);
 
   const handleWordChange = (letra: string, newValue: string) => {
     if (!config) return;
@@ -133,19 +153,32 @@ export default function ConfigPage() {
   };
 
   const handleSave = async () => {
-    if (config) {
-      saveConfig(config);
+    if (!config || guardando) return;
+    setGuardando(true);
+    setAviso("");
+    saveConfig(config); // local primero: nunca se pierde lo que el adulto escribió
+    try {
       await flushPush(); // subir al servidor antes de salir
       router.push("/jugar");
+    } catch {
+      // El guardado local YA está hecho; lo que falló es la sincronización.
+      setAviso(
+        "Se guardó en esta tablet, pero no se pudo sincronizar con el servidor. " +
+          "Revisá la conexión: se va a reintentar solo."
+      );
+    } finally {
+      setGuardando(false);
     }
   };
 
   const handleRestore = () => {
-    const newConfig = { ...config!, palabras: PALABRAS_DEFAULT };
-    setConfig(newConfig);
+    setConfig({ ...config!, palabras: palabrasDefault() });
   };
 
-  const handleLogout = () => {
+  const handleLogout = async (borrarLocal: boolean) => {
+    // Sube lo pendiente bajo el username de ESTE chico antes de soltar la sesión.
+    await cerrarSesionSync();
+    if (borrarLocal && usuario) limpiarDatosLocales(usuario);
     clearSessionData();
     router.push("/");
   };
@@ -181,15 +214,25 @@ export default function ConfigPage() {
           
           <button
             onClick={handleSave}
-            className="flex-1 bg-brand-green text-white border-none rounded-[22px] py-3 text-lg font-bold shadow-[0_5px_0_rgba(0,0,0,0.18)] transition-transform active:translate-y-1 active:shadow-none"
+            disabled={guardando}
+            className="flex-1 bg-brand-green text-white border-none rounded-[22px] py-3 text-lg font-bold shadow-[0_5px_0_rgba(0,0,0,0.18)] transition-transform active:translate-y-1 active:shadow-none disabled:opacity-60"
           >
-            Guardar
+            {guardando ? "Guardando..." : "Guardar"}
           </button>
         </div>
 
-        <h1 className="text-brand-dark text-[2rem] font-bold text-center mb-6">
+        {aviso && (
+          <div className="w-full mb-6 bg-brand-orange/15 border-2 border-brand-orange/40 text-brand-dark rounded-[18px] p-4 text-center font-bold">
+            {aviso}
+          </div>
+        )}
+
+        <h1 className="text-brand-dark text-[2rem] font-bold text-center mb-1">
           Configuración
         </h1>
+        <p className="text-brand-blue text-center mb-6">
+          Usuario: <b>{usuario}</b>
+        </p>
 
         <div className="bg-white/80 rounded-[26px] p-6 shadow-[0_6px_0_rgba(0,0,0,0.12)] w-full mb-6">
           <div className="mb-4">
@@ -277,7 +320,15 @@ export default function ConfigPage() {
         </div>
 
         <div className="bg-white/80 rounded-[26px] p-4 shadow-[0_6px_0_rgba(0,0,0,0.12)] w-full overflow-hidden">
-          <h2 className="text-brand-blue text-xl font-bold mb-4 text-center">Palabras (una por letra)</h2>
+          <h2 className="text-brand-blue text-xl font-bold mb-1 text-center">Palabras (una por letra)</h2>
+          <div className="flex justify-center mb-4">
+            <button
+              onClick={handleRestore}
+              className="text-brand-blue text-sm font-bold underline underline-offset-2 opacity-80 hover:opacity-100 py-1 px-2"
+            >
+              Restaurar las palabras por defecto
+            </button>
+          </div>
           
           <div>
             <div className="grid grid-cols-1 lg:grid-cols-3 md:grid-cols-2 gap-3">
@@ -341,14 +392,55 @@ export default function ConfigPage() {
         </div>
         
         <button
-          onClick={handleLogout}
+          onClick={() => setSalirOpen(true)}
           className="w-full mt-8 bg-gray-200 text-gray-600 border-none rounded-xl p-3 text-[1rem] font-bold cursor-pointer transition-transform active:translate-y-1"
         >
           Salir (cambiar usuario)
         </button>
 
-        <p className="text-center text-gray-400 text-xs mt-4">Tablele v0.9.1</p>
+        <p className="text-center text-gray-400 text-xs mt-4">Tablele v0.9.2</p>
       </div>
+
+      {salirOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-6"
+          onClick={() => setSalirOpen(false)}
+        >
+          <div
+            className="bg-white rounded-[26px] p-6 w-full max-w-[360px] shadow-xl flex flex-col gap-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-brand-dark font-bold text-lg text-center">
+              Salir de <b>{usuario}</b>
+            </h3>
+            <p className="text-brand-blue text-center text-[0.95rem]">
+              La configuración y el informe quedan guardados en el servidor y vuelven
+              al entrar de nuevo con este usuario.
+            </p>
+            <button
+              onClick={() => void handleLogout(false)}
+              className="bg-brand-green text-white rounded-[18px] p-3 font-bold shadow-[0_4px_0_rgba(0,0,0,0.18)] active:translate-y-1 active:shadow-none"
+            >
+              Salir y cambiar de usuario
+            </button>
+            <button
+              onClick={() => void handleLogout(true)}
+              className="bg-white border-2 border-brand-pink/40 text-brand-pink rounded-[18px] p-3 font-bold active:translate-y-1"
+            >
+              Salir y borrar los datos de esta tablet
+            </button>
+            <p className="text-gray-500 text-xs text-center -mt-1">
+              Útil en una tablet compartida. No borra nada del servidor.
+            </p>
+            <button
+              onClick={() => setSalirOpen(false)}
+              className="bg-gray-200 text-gray-600 rounded-[18px] p-3 font-bold active:translate-y-1"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
