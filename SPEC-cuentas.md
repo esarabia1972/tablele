@@ -530,16 +530,30 @@ Es lo que propone `TABLELE-tecnico-funcional.md` §3 para el proyecto de lenguaj
 **D. Compartir sólo el informe, de sólo lectura.** Mucho más barato, pero no
 cubre "modificar las palabras", que es la mitad del pedido.
 
-### 14.2. Recomendación
+### 14.2. Mientras tanto: compartir el correo
+
+Decisión operativa de 2026-08-29: **los dos adultos usan el mismo correo.** La
+familia de Manu entra con `letialberti@hotmail.com` desde cualquier dispositivo.
+
+Funciona sin tocar nada: el correo es la llave de la cuenta y no está atado a un
+dispositivo, y el sync entre dos dispositivos ya está resuelto (los eventos se
+fusionan, no se pisan — ver los invariantes de §7.2).
+
+**Vence cuando Leticia cargue su segundo paciente.** A partir de ahí, la familia
+de Manu ve el nombre de ese chico en "¿Quién va a jugar?", puede entrar,
+cambiarle las palabras y borrarle el historial (el candado adulto es una suma de
+dos dígitos). Eso es confidencialidad de pacientes, no una molestia de UX.
+
+### 14.3. Recomendación
 
 **B, y no ahora.** A es una tapa, no un modelo: el trabajo de sostenerla (las
 consultas con `or`, la lógica de dueño) es casi el mismo que el de introducir la
 tabla, y hay que hacerlo dos veces.
 
-**El disparador es el primer chico que de verdad necesite dos adultos.** Antes de
-eso no se sabe cuál de los dos casos es el principal, y eso decide el esquema.
+**El disparador es el segundo paciente de Leticia** (ver §14.2), o el primer
+chico que necesite dos adultos con permisos distintos — lo que llegue antes.
 
-### 14.3. Lo que hay que resolver ANTES de elegir
+### 14.4. Lo que hay que resolver ANTES de elegir
 
 **¿De quién es el chico?** La spec de arriba asume que el dueño es quien lo crea.
 Pero en terapia la profesional define el vocabulario, la etapa y el nivel, y la
