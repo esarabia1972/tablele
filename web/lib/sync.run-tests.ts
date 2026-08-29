@@ -188,10 +188,30 @@ await reset();
 entrarComo("ana");
 hidratar("ana");
 storage.setStars(3);
-await sync.cerrarSesionSync();
+const aSalvo = await sync.cerrarSesionSync();
 check(
   "cerrar sesión sube lo pendiente en vez de descartarlo",
   posts.some((p) => p.body.username === "ana" && p.body.stars === 3)
+);
+check("y avisa que quedó todo a salvo en el servidor", aSalvo === true);
+
+// Salir borra los datos de la tablet, pero SÓLO si subieron: si no, se
+// perderían para siempre al no poder bajarlos de nuevo.
+await reset();
+entrarComo("ana");
+hidratar("ana");
+fallarPost = true;
+storage.setStars(4);
+const aSalvoConFalla = await sync.cerrarSesionSync();
+check("si el push falla, avisa que NO está a salvo", aSalvoConFalla === false);
+fallarPost = false;
+
+await reset();
+entrarComo("beto"); // sin hidratar
+storage.setStars(1);
+check(
+  "un usuario sin hidratar tampoco está a salvo",
+  (await sync.cerrarSesionSync()) === false
 );
 
 // =============================================================================
@@ -396,7 +416,12 @@ check(
   "borrar los datos de la tablet no deja rastro de ese usuario",
   [...almacen.keys()].filter((k) => k.endsWith("_ana")).length === 0
 );
-check("y lo saca de la lista de usuarios conocidos", !storage.listarUsuariosLocales().includes("ana"));
+check(
+  "pero el nombre sigue en la lista, para no tipearlo cada vez",
+  storage.listarUsuariosLocales().includes("ana")
+);
+storage.limpiarDatosLocales("ana", { olvidar: true });
+check("y con olvidar:true sí desaparece", !storage.listarUsuariosLocales().includes("ana"));
 
 // -----------------------------------------------------------------------------
 

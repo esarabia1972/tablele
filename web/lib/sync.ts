@@ -230,18 +230,25 @@ export async function flushPush(): Promise<void> {
  * Cierre de sesión: sube lo pendiente bajo el username del chico que SALE y
  * resetea el estado de módulo. Llamar SIEMPRE antes de clearSessionData().
  * No lanza: cerrar sesión nunca debe quedar bloqueado por la red.
+ *
+ * Devuelve `true` sólo si todo lo de ese chico está a salvo en el servidor.
+ * De eso depende que se puedan borrar sus datos de este dispositivo: si algo
+ * no llegó a subir, borrarlos sería perderlos.
  */
-export async function cerrarSesionSync(): Promise<void> {
-  if (typeof window === "undefined") return;
+export async function cerrarSesionSync(): Promise<boolean> {
+  if (typeof window === "undefined") return false;
   if (pushTimer) {
     clearTimeout(pushTimer);
     pushTimer = null;
   }
   const p = pendiente;
   pendiente = null;
+  const username = p?.username || getUsername();
   try {
     await pushNow(p);
   } catch {}
+  if (!username) return false;
+  return estaHidratado(username) && leer(BASES.dirtyAt, username) === null;
 }
 
 /**

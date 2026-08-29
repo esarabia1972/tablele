@@ -136,13 +136,17 @@ export function migrarLegacy(username: string) {
   localStorage.setItem(K_MIGRADO, "1");
 }
 
-/** Borra los datos de un usuario SÓLO en este dispositivo (el servidor no se toca). */
-export function limpiarDatosLocales(username: string) {
+/**
+ * Borra los datos de un usuario SÓLO en este dispositivo (el servidor no se toca).
+ * Por defecto conserva el nombre en la lista de la tablet: es sólo un nombre,
+ * sin datos, y es lo que evita que el adulto tenga que tipearlo cada vez.
+ */
+export function limpiarDatosLocales(username: string, opts: { olvidar?: boolean } = {}) {
   if (typeof window === "undefined" || !username) return;
   Object.values(BASES).forEach((base) => {
     localStorage.removeItem(claveDe(base, username));
   });
-  olvidarUsuario(username);
+  if (opts.olvidar) olvidarUsuario(username);
 }
 
 // --- Configuración ----------------------------------------------------------

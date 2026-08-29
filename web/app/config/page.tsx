@@ -43,8 +43,8 @@ export default function ConfigPage() {
   const [config, setConfig] = useState<ConfigTablero | null>(null);
   const [subiendo, setSubiendo] = useState<string | null>(null); // letra en proceso
   const [guardando, setGuardando] = useState(false);
+  const [saliendo, setSaliendo] = useState(false);
   const [aviso, setAviso] = useState("");
-  const [salirOpen, setSalirOpen] = useState(false);
   const [usuario, setUsuario] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const letraFotoRef = useRef<string>("");
@@ -175,10 +175,24 @@ export default function ConfigPage() {
     setConfig({ ...config!, palabras: palabrasDefault() });
   };
 
-  const handleLogout = async (borrarLocal: boolean) => {
+  const handleLogout = async () => {
+    if (saliendo) return;
+    setSaliendo(true);
+    setAviso("");
     // Sube lo pendiente bajo el username de ESTE chico antes de soltar la sesión.
-    await cerrarSesionSync();
-    if (borrarLocal && usuario) limpiarDatosLocales(usuario);
+    const aSalvo = await cerrarSesionSync();
+    if (!aSalvo) {
+      // Algo no llegó al servidor: no se sale ni se borra nada, porque al
+      // volver a entrar eso no se podría recuperar.
+      setAviso(
+        "Todavía hay cambios sin subir. Revisá la conexión y probá de nuevo en un momento."
+      );
+      setSaliendo(false);
+      return;
+    }
+    // Ya está todo en el servidor: la tablet queda limpia y al volver a entrar
+    // se baja de nuevo.
+    if (usuario) limpiarDatosLocales(usuario);
     clearSessionData();
     router.push("/");
   };
@@ -392,55 +406,16 @@ export default function ConfigPage() {
         </div>
         
         <button
-          onClick={() => setSalirOpen(true)}
-          className="w-full mt-8 bg-gray-200 text-gray-600 border-none rounded-xl p-3 text-[1rem] font-bold cursor-pointer transition-transform active:translate-y-1"
+          onClick={() => void handleLogout()}
+          disabled={saliendo}
+          className="w-full mt-8 bg-gray-200 text-gray-600 border-none rounded-xl p-3 text-[1rem] font-bold cursor-pointer transition-transform active:translate-y-1 disabled:opacity-60"
         >
-          Salir (cambiar usuario)
+          {saliendo ? "Guardando..." : "Salir (cambiar usuario)"}
         </button>
 
         <p className="text-center text-gray-400 text-xs mt-4">Tablele v0.9.2</p>
       </div>
 
-      {salirOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-6"
-          onClick={() => setSalirOpen(false)}
-        >
-          <div
-            className="bg-white rounded-[26px] p-6 w-full max-w-[360px] shadow-xl flex flex-col gap-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-brand-dark font-bold text-lg text-center">
-              Salir de <b>{usuario}</b>
-            </h3>
-            <p className="text-brand-blue text-center text-[0.95rem]">
-              La configuración y el informe quedan guardados en el servidor y vuelven
-              al entrar de nuevo con este usuario.
-            </p>
-            <button
-              onClick={() => void handleLogout(false)}
-              className="bg-brand-green text-white rounded-[18px] p-3 font-bold shadow-[0_4px_0_rgba(0,0,0,0.18)] active:translate-y-1 active:shadow-none"
-            >
-              Salir y cambiar de usuario
-            </button>
-            <button
-              onClick={() => void handleLogout(true)}
-              className="bg-white border-2 border-brand-pink/40 text-brand-pink rounded-[18px] p-3 font-bold active:translate-y-1"
-            >
-              Salir y borrar los datos de esta tablet
-            </button>
-            <p className="text-gray-500 text-xs text-center -mt-1">
-              Útil en una tablet compartida. No borra nada del servidor.
-            </p>
-            <button
-              onClick={() => setSalirOpen(false)}
-              className="bg-gray-200 text-gray-600 rounded-[18px] p-3 font-bold active:translate-y-1"
-            >
-              Cancelar
-            </button>
-          </div>
-        </div>
-      )}
     </>
   );
 }
