@@ -8,6 +8,8 @@ import {
   saveConfig,
   clearSessionData,
   getSessionData,
+  getCuenta,
+  salirDeCuenta,
   limpiarDatosLocales,
   ConfigTablero,
   NIVEL_SILABICA,
@@ -46,6 +48,13 @@ export default function ConfigPage() {
   const [saliendo, setSaliendo] = useState(false);
   const [aviso, setAviso] = useState("");
   const [usuario, setUsuario] = useState("");
+  const [cuentaId, setCuentaId] = useState("");
+  const [cuentaEmail, setCuentaEmail] = useState("");
+  // Candado adulto para cambiar de cuenta: la misma suma de dos dígitos que
+  // protege el borrado del historial.
+  const [cambioOpen, setCambioOpen] = useState(false);
+  const [pregunta, setPregunta] = useState({ a: 2, b: 3 });
+  const [resp, setResp] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const letraFotoRef = useRef<string>("");
 
@@ -59,7 +68,9 @@ export default function ConfigPage() {
     }
     (async () => {
       setUsuario(s.username);
-      await syncFromServer(s.username);
+      setCuentaId(s.accountId);
+      setCuentaEmail(getCuenta()?.email ?? "");
+      await syncFromServer(s.accountId, s.username);
       setConfig(getConfig());
     })();
   }, [router]);
@@ -110,7 +121,7 @@ export default function ConfigPage() {
       const res = await fetch("/api/foto", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: s.username, dataUrl }),
+        body: JSON.stringify({ accountId: s.accountId, username: s.username, dataUrl }),
       });
       const data = await res.json();
       if (data.ok && data.url) {
@@ -192,8 +203,34 @@ export default function ConfigPage() {
     }
     // Ya está todo en el servidor: la tablet queda limpia y al volver a entrar
     // se baja de nuevo.
-    if (usuario) limpiarDatosLocales(usuario);
+    if (cuentaId && usuario) limpiarDatosLocales(cuentaId, usuario);
     clearSessionData();
+    router.push("/");
+  };
+
+  const abrirCambioDeCuenta = () => {
+    setPregunta({
+      a: 1 + Math.floor(Math.random() * 9),
+      b: 1 + Math.floor(Math.random() * 9),
+    });
+    setResp("");
+    setCambioOpen(true);
+  };
+
+  const respuestaOk = parseInt(resp) === pregunta.a + pregunta.b;
+
+  const cambiarDeCuenta = async () => {
+    if (!respuestaOk) return;
+    // Sube lo pendiente antes de soltar todo. Si no llegó, no se borra nada.
+    const aSalvo = await cerrarSesionSync();
+    if (!aSalvo) {
+      setCambioOpen(false);
+      setAviso(
+        "Todavía hay cambios sin subir. Revisá la conexión y probá de nuevo en un momento."
+      );
+      return;
+    }
+    salirDeCuenta();
     router.push("/");
   };
 
@@ -413,8 +450,61 @@ export default function ConfigPage() {
           {saliendo ? "Guardando..." : "Salir (cambiar usuario)"}
         </button>
 
-        <p className="text-center text-gray-400 text-xs mt-4">Tablele v0.9.2</p>
+        <button
+          onClick={abrirCambioDeCuenta}
+          className="w-full mt-3 bg-transparent text-gray-400 border-none p-2 text-sm font-bold cursor-pointer underline underline-offset-2"
+        >
+          Cambiar de cuenta{cuentaEmail ? ` (${cuentaEmail})` : ""}
+        </button>
+
+        <p className="text-center text-gray-400 text-xs mt-4">Tablele v0.10.0</p>
       </div>
+
+      {cambioOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-6"
+          onClick={() => setCambioOpen(false)}
+        >
+          <div
+            className="bg-white rounded-[26px] p-6 w-full max-w-[340px] shadow-xl flex flex-col gap-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-brand-dark font-bold text-lg text-center">
+              Pregunta para adultos
+            </h3>
+            <p className="text-brand-blue text-center">
+              Se cierran todos los chicos de esta cuenta en esta tablet.
+              <br />
+              <b className="text-[1.6rem] text-brand-dark">
+                ¿Cuánto es {pregunta.a} + {pregunta.b}?
+              </b>
+            </p>
+            <input
+              type="number"
+              inputMode="numeric"
+              value={resp}
+              onChange={(e) => setResp(e.target.value)}
+              className="w-full text-center text-2xl p-3 rounded-xl border-2 border-brand-blue/20 outline-none focus:border-brand-blue"
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => setCambioOpen(false)}
+                className="flex-1 bg-gray-200 text-gray-600 rounded-[18px] p-3 font-bold active:translate-y-1"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => void cambiarDeCuenta()}
+                disabled={!respuestaOk}
+                className="flex-1 bg-brand-pink text-white rounded-[18px] p-3 font-bold shadow-[0_4px_0_rgba(0,0,0,0.18)] active:translate-y-1 active:shadow-none disabled:opacity-40 disabled:shadow-none"
+              >
+                Cambiar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </>
   );

@@ -14,7 +14,14 @@ import {
   idEvento,
   type EventoCrudo,
 } from "./eventos.ts";
-import { normalizarUsername, claveDe, USERNAME_RE } from "./claves.ts";
+import {
+  normalizarUsername,
+  normalizarEmail,
+  claveDe,
+  USERNAME_RE,
+  EMAIL_RE,
+  ACCOUNT_ID_RE,
+} from "./claves.ts";
 
 let fallas = 0;
 let corridos = 0;
@@ -148,11 +155,36 @@ check(
 );
 check("rechaza demasiado corto", !USERNAME_RE.test("ab"));
 
-// BUG: las claves DEBEN llevar sufijo de usuario; sin eso se comparte el bucket.
-check("la clave siempre lleva el usuario", claveDe("tablele.config", "ana") === "tablele.config_ana");
+// BUG: las claves DEBEN llevar cuenta y chico; sin eso se comparte el bucket.
+const A = "11111111-1111-4111-8111-111111111111";
+const B = "22222222-2222-4222-8222-222222222222";
 check(
-  "dos usuarios nunca comparten clave",
-  claveDe("tablele.config", "ana") !== claveDe("tablele.config", "beto")
+  "la clave lleva la cuenta y el chico",
+  claveDe("tablele.config", A, "ana") === `tablele.config_${A}_ana`
+);
+check(
+  "dos chicos de la misma cuenta nunca comparten clave",
+  claveDe("tablele.config", A, "ana") !== claveDe("tablele.config", A, "beto")
+);
+check(
+  "el mismo nombre en dos cuentas tampoco",
+  claveDe("tablele.config", A, "manu") !== claveDe("tablele.config", B, "manu")
+);
+
+// --- correos y cuentas -------------------------------------------------------
+
+check("el correo se normaliza", normalizarEmail("  Leti@Hotmail.COM ") === "leti@hotmail.com");
+check("acepta un correo normal", EMAIL_RE.test("letialberti@hotmail.com"));
+check("rechaza uno sin arroba", !EMAIL_RE.test("letialberti.hotmail.com"));
+check("rechaza uno sin dominio", !EMAIL_RE.test("leti@hotmail"));
+check("rechaza espacios", !EMAIL_RE.test("le ti@hotmail.com"));
+check("lo normalizado pasa la validación", EMAIL_RE.test(normalizarEmail(" Leti@Hotmail.com ")));
+
+check("acepta un uuid de cuenta", ACCOUNT_ID_RE.test(A));
+check("rechaza cualquier otra cosa como cuenta", !ACCOUNT_ID_RE.test("ana"));
+check(
+  "rechaza un intento de inyección en el filtro de PostgREST",
+  !ACCOUNT_ID_RE.test("11111111-1111-4111-8111-111111111111&username=eq.otro")
 );
 
 // -----------------------------------------------------------------------------

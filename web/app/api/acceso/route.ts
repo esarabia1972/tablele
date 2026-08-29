@@ -1,106 +1,106 @@
 import { NextResponse } from "next/server";
-import { USERNAME_RE } from "@/lib/claves";
+import { ACCOUNT_ID_RE, USERNAME_RE } from "@/lib/claves";
+import {
+  SupabaseError,
+  TABLA_CUENTAS,
+  TABLA_DATOS,
+  hayStorage,
+  sbGet,
+  sbUpsert,
+} from "@/lib/supabase";
 
-// Acceso por nombre de usuario (sin email).
-// Dos pasos deliberados:
-//   POST { username }              -> si no existe, responde existe:false y NO lo crea
-//   POST { username, crear: true } -> lo crea y entra
-// Antes cualquier typo creaba un chico nuevo en silencio, con su informe vacío
-// y las palabras por defecto, y nadie se enteraba de que había perdido el suyo.
-
-const SB_URL = (() => {
-  const raw = process.env.SUPABASE_URL?.trim();
-  if (!raw) return undefined;
-  try {
-    return new URL(raw).origin;
-  } catch {
-    return undefined;
-  }
-})();
-const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-const TABLE = "tablele_datos";
+// Acceso de un chico DENTRO de una cuenta ya validada por /api/cuenta.
+//
+// Alta en dos pasos, igual que antes: sin `crear`, un nombre que no existe se
+// informa en vez de darse de alta en silencio. Lo que cambia es que el nombre
+// ya no es global: sólo tiene que ser único dentro de la cuenta.
 
 export async function POST(request: Request) {
+  let body: Record<string, unknown>;
   try {
-    const body = await request.json();
-    const username = String(body.username || "").trim().toLowerCase();
-    const crear = body.crear === true;
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ ok: false, motivo: "json-invalido" }, { status: 400 });
+  }
 
-    if (!USERNAME_RE.test(username)) {
-      return NextResponse.json({
-        ok: false,
-        motivo: "username-invalido",
-        message: "El usuario debe tener de 3 a 20 letras, números o _ (sin espacios ni tildes)",
-      });
-    }
+  const accountId = String(body.accountId || "").trim();
+  const username = String(body.username || "").trim().toLowerCase();
+  const crear = body.crear === true;
 
-    // Sin storage configurado: entra igual, en modo local
-    if (!SB_URL || !SB_KEY) {
-      return NextResponse.json({ ok: true, username, local: true });
-    }
+  if (!ACCOUNT_ID_RE.test(accountId)) {
+    return NextResponse.json({ ok: false, motivo: "cuenta-invalida" }, { status: 403 });
+  }
+  if (!USERNAME_RE.test(username)) {
+    return NextResponse.json({
+      ok: false,
+      motivo: "username-invalido",
+      message: "El nombre necesita de 3 a 20 letras o números, sin espacios ni tildes.",
+    });
+  }
 
-    const headers = {
-      apikey: SB_KEY,
-      Authorization: `Bearer ${SB_KEY}`,
-      "Content-Type": "application/json",
-    };
+  // Sin storage configurado: entra igual, en modo local
+  if (!hayStorage()) {
+    return NextResponse.json({ ok: true, accountId, username, local: true });
+  }
 
-    const consulta = await fetch(
-      `${SB_URL}/rest/v1/${TABLE}?username=eq.${encodeURIComponent(username)}&select=username`,
-      { headers, cache: "no-store" }
+  try {
+    // La cuenta tiene que existir y estar activa. Se revalida en cada acceso:
+    // el accountId viene del cliente y una cuenta puede haberse dado de baja.
+    const cuentas = await sbGet<{ id: string; activo: boolean }[]>(
+      `/rest/v1/${TABLA_CUENTAS}?id=eq.${accountId}&select=id,activo`
     );
-    if (!consulta.ok) {
-      const detail = (await consulta.text()).slice(0, 300);
-      return NextResponse.json(
-        {
-          ok: false,
-          motivo: "storage",
-          message: "No se pudo verificar el usuario",
-          sbStatus: consulta.status,
-          sbError: detail,
-        },
-        { status: 502 }
-      );
+    if (!cuentas?.[0] || cuentas[0].activo === false) {
+      return NextResponse.json({ ok: false, motivo: "cuenta-invalida" }, { status: 403 });
     }
-    const filas = await consulta.json();
+
+    const filas = await sbGet<{ username: string }[]>(
+      `/rest/v1/${TABLA_DATOS}?account_id=eq.${accountId}&username=eq.${encodeURIComponent(
+        username
+      )}&select=username`
+    );
     const existe = Array.isArray(filas) && filas.length > 0;
 
     if (existe) {
-      return NextResponse.json({ ok: true, username, existe: true });
+      if (crear) {
+        // Alta de un nombre que ya está en esta cuenta: no se pisa nunca.
+        return NextResponse.json({
+          ok: false,
+          motivo: "ya-existe",
+          username,
+          message: `Ya tenés un ${username}. Agregale algo para distinguirlos.`,
+        });
+      }
+      return NextResponse.json({ ok: true, accountId, username, existe: true });
     }
+
     if (!crear) {
       return NextResponse.json({
         ok: false,
         motivo: "no-existe",
         existe: false,
         username,
-        message: `No existe el usuario «${username}».`,
+        message: `No existe ${username} en esta cuenta.`,
       });
     }
 
-    // Alta: upsert. Si existe no pisa nada (carrera con otra pestaña).
-    const res = await fetch(`${SB_URL}/rest/v1/${TABLE}?on_conflict=username`, {
-      method: "POST",
-      headers: { ...headers, Prefer: "resolution=merge-duplicates,return=minimal" },
-      body: JSON.stringify([{ username }]),
-    });
+    await sbUpsert(`/rest/v1/${TABLA_DATOS}?on_conflict=account_id,username`, [
+      { account_id: accountId, username },
+    ]);
 
-    if (!res.ok) {
-      const detail = (await res.text()).slice(0, 300);
+    return NextResponse.json({ ok: true, accountId, username, existe: false, creado: true });
+  } catch (err) {
+    if (err instanceof SupabaseError) {
       return NextResponse.json(
         {
           ok: false,
           motivo: "storage",
-          message: "No se pudo crear el usuario",
-          sbStatus: res.status,
-          sbError: detail,
+          message: "No se pudo verificar el usuario",
+          sbStatus: err.sbStatus,
+          sbError: err.sbError,
         },
         { status: 502 }
       );
     }
-
-    return NextResponse.json({ ok: true, username, existe: false, creado: true });
-  } catch {
     return NextResponse.json(
       { ok: false, motivo: "interno", message: "Error interno del servidor" },
       { status: 500 }

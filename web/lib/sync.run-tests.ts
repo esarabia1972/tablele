@@ -69,7 +69,11 @@ g.fetch = async (url: string, init?: RequestInit) => {
   return { ok: true, status: 200, json: async () => respuestaGet };
 };
 
-const { BASES, claveDe, K_SESSION } = await import("@/lib/claves");
+const { BASES, claveDe, K_SESSION, K_CUENTA } = await import("@/lib/claves");
+
+// Dos cuentas distintas, para probar que un mismo nombre no se mezcla.
+const CTA_A = "11111111-1111-4111-8111-111111111111";
+const CTA_B = "22222222-2222-4222-8222-222222222222";
 const sync = await import("@/lib/sync");
 const storage = await import("@/lib/storage");
 
@@ -94,19 +98,26 @@ async function reset() {
   respuestaGet = { ok: true, data: null };
 }
 
-function entrarComo(username: string) {
-  localStorageStub.setItem(K_SESSION, JSON.stringify({ username }));
+function entrarComo(username: string, accountId = CTA_A) {
+  localStorageStub.setItem(K_SESSION, JSON.stringify({ accountId, username }));
 }
 
-/** Simula que este navegador ya bajó la fila del usuario. */
-function hidratar(username: string) {
-  localStorageStub.setItem(claveDe(BASES.syncAt, username), new Date(0).toISOString());
+function validarCuenta(accountId = CTA_A, email = "adulto@x.com") {
+  localStorageStub.setItem(K_CUENTA, JSON.stringify({ accountId, email }));
 }
 
-const configDe = (u: string) =>
-  JSON.parse(localStorageStub.getItem(claveDe(BASES.config, u)) || "null");
-const eventosDe = (u: string) =>
-  JSON.parse(localStorageStub.getItem(claveDe(BASES.eventos, u)) || "[]");
+/** Simula que este navegador ya bajó la fila de ese chico. */
+function hidratar(username: string, accountId = CTA_A) {
+  localStorageStub.setItem(
+    claveDe(BASES.syncAt, accountId, username),
+    new Date(0).toISOString()
+  );
+}
+
+const configDe = (u: string, a = CTA_A) =>
+  JSON.parse(localStorageStub.getItem(claveDe(BASES.config, a, u)) || "null");
+const eventosDe = (u: string, a = CTA_A) =>
+  JSON.parse(localStorageStub.getItem(claveDe(BASES.eventos, a, u)) || "[]");
 
 // =============================================================================
 // BUG-04 — aislamiento por usuario
@@ -147,8 +158,9 @@ localStorageStub.setItem("tablele.config", JSON.stringify({ nombre: "viejo" }));
 entrarComo("beto");
 storage.migrarLegacy("beto");
 check(
-  "lo legacy se adopta para el usuario que entra, no para 'manu'",
-  configDe("beto")?.nombre === "viejo" && configDe("manu") === null
+  "lo legacy se adopta para el chico que entra, no para 'manu'",
+  JSON.parse(localStorageStub.getItem("tablele.config_beto") || "null")?.nombre === "viejo" &&
+    localStorageStub.getItem("tablele.config_manu") === null
 );
 check(
   "lo legacy queda respaldado, no se pierde",
@@ -156,6 +168,78 @@ check(
 );
 storage.migrarLegacy("beto");
 check("la migración corre una sola vez", localStorageStub.getItem("tablele.config") === null);
+
+// Segundo salto: del esquema de un solo chico al de (cuenta, chico).
+storage.migrarACuentas(CTA_A, "beto");
+check(
+  "las claves pasan a llevar la cuenta",
+  configDe("beto")?.nombre === "viejo"
+);
+check(
+  "y la clave sin cuenta se libera (no se duplica el informe)",
+  localStorageStub.getItem("tablele.config_beto") === null
+);
+localStorageStub.setItem("tablele.config_beto", JSON.stringify({ nombre: "otro" }));
+storage.migrarACuentas(CTA_A, "beto");
+check(
+  "la migración a cuentas también corre una sola vez",
+  localStorageStub.getItem("tablele.config_beto") !== null
+);
+
+// =============================================================================
+// Aislamiento entre cuentas: dos adultos, cada uno con su Manu
+// =============================================================================
+
+await reset();
+entrarComo("manu", CTA_A);
+storage.saveConfig({ metodo: "SELEC", nivel: "Global", nombre: "Manu de A", palabras: [] });
+entrarComo("manu", CTA_B);
+check(
+  "el mismo nombre en otra cuenta NO ve la config del primero",
+  storage.getConfig().nombre !== "Manu de A"
+);
+check(
+  "y arranca con las palabras por defecto",
+  storage.getConfig().palabras.length === 27
+);
+storage.saveConfig({ metodo: "SELEC", nivel: "Global", nombre: "Manu de B", palabras: [] });
+check(
+  "cada cuenta conserva la suya",
+  configDe("manu", CTA_A)?.nombre === "Manu de A" &&
+    configDe("manu", CTA_B)?.nombre === "Manu de B"
+);
+check(
+  "y no comparten ninguna clave de localStorage",
+  [...almacen.keys()].filter((k) => k.includes(CTA_A) && k.includes(CTA_B)).length === 0
+);
+
+// El push pendiente de un Manu no puede subirse bajo la otra cuenta.
+await reset();
+entrarComo("manu", CTA_A);
+hidratar("manu", CTA_A);
+storage.setStars(3);
+entrarComo("manu", CTA_B);
+hidratar("manu", CTA_B);
+storage.setStars(1);
+await new Promise((r) => setTimeout(r, 50));
+const deA = posts.find((p) => p.body.accountId === CTA_A);
+check(
+  "el pendiente del primer Manu se sube con SU cuenta",
+  !!deA && deA.body.stars === 3,
+  JSON.stringify(posts.map((p) => [p.body.accountId, p.body.stars]))
+);
+
+// =============================================================================
+// Sesiones del esquema anterior
+// =============================================================================
+
+await reset();
+localStorageStub.setItem(K_SESSION, JSON.stringify({ username: "manu" })); // sin cuenta
+check("una sesión sin cuenta se considera inválida", storage.getSessionData() === null);
+localStorageStub.setItem(K_SESSION, JSON.stringify({ email: "x@y.com" })); // formato viejísimo
+check("una sesión por email también", storage.getSessionData() === null);
+localStorageStub.setItem(K_SESSION, JSON.stringify({ accountId: "no-es-uuid", username: "manu" }));
+check("y una cuenta que no es uuid también", storage.getSessionData() === null);
 
 // =============================================================================
 // BUG-02 — un push pendiente pertenece al usuario que lo generó
@@ -268,7 +352,7 @@ const muchos = Array.from({ length: 1500 }, (_, i) => ({
   id: `e${i}`, t: 1700000000000 + i, juego: "wp", palabra: "elefante",
   elegida: "elefante", ok: true, intento: 1, ms: 3210, ayuda: false,
 }));
-localStorageStub.setItem(claveDe(BASES.eventos, "ana"), JSON.stringify(muchos));
+localStorageStub.setItem(claveDe(BASES.eventos, CTA_A, "ana"), JSON.stringify(muchos));
 storage.setStars(2);
 storage.recordEvento({
   t: Date.now(), juego: "wp", palabra: "casa", elegida: "casa",
@@ -304,7 +388,7 @@ respuestaGet = {
     updated_at: new Date(Date.now() - 60_000).toISOString(),
   },
 };
-await sync.syncFromServer("ana");
+await sync.syncFromServer(CTA_A, "ana");
 check(
   "si el guardado no llegó, el pull NO revierte a las palabras viejas",
   configDe("ana")?.nombre === "nueva",
@@ -323,7 +407,7 @@ respuestaGet = {
     updated_at: new Date().toISOString(),
   },
 };
-await sync.syncFromServer("ana");
+await sync.syncFromServer(CTA_A, "ana");
 check(
   "sin cambios locales pendientes, sí baja lo del server",
   configDe("ana")?.nombre === "del server"
@@ -337,7 +421,7 @@ await reset();
 entrarComo("ana");
 hidratar("ana");
 localStorageStub.setItem(
-  claveDe(BASES.eventos, "ana"),
+  claveDe(BASES.eventos, CTA_A, "ana"),
   JSON.stringify([{ id: "local1", t: 2000, juego: "wp", palabra: "casa", elegida: "casa", ok: true, intento: 1, ms: 900, ayuda: false }])
 );
 respuestaGet = {
@@ -350,7 +434,7 @@ respuestaGet = {
     updated_at: new Date().toISOString(),
   },
 };
-await sync.syncFromServer("ana");
+await sync.syncFromServer(CTA_A, "ana");
 const ids = eventosDe("ana").map((e: { id: string }) => e.id);
 check(
   "el pull fusiona el informe local con el del servidor",
@@ -363,11 +447,11 @@ await reset();
 entrarComo("ana");
 hidratar("ana");
 localStorageStub.setItem(
-  claveDe(BASES.eventos, "ana"),
+  claveDe(BASES.eventos, CTA_A, "ana"),
   JSON.stringify([{ id: "l1", t: 1, juego: "wp", palabra: "casa", elegida: "casa", ok: true, intento: 1, ms: 1, ayuda: false }])
 );
 respuestaGet = { ok: true, data: { stats: null, updated_at: new Date().toISOString() } };
-await sync.syncFromServer("ana");
+await sync.syncFromServer(CTA_A, "ana");
 check("una fila vacía en el server no borra el informe local", eventosDe("ana").length === 1);
 
 // =============================================================================
@@ -378,7 +462,7 @@ await reset();
 entrarComo("ana");
 hidratar("ana");
 localStorageStub.setItem(
-  claveDe(BASES.eventos, "ana"),
+  claveDe(BASES.eventos, CTA_A, "ana"),
   JSON.stringify([{ id: "viejo", t: Date.now() - 5000, juego: "wp", palabra: "casa", elegida: "casa", ok: true, intento: 1, ms: 1, ayuda: false }])
 );
 storage.clearMetricas();
@@ -395,7 +479,7 @@ respuestaGet = {
     updated_at: new Date().toISOString(),
   },
 };
-await sync.syncFromServer("ana");
+await sync.syncFromServer(CTA_A, "ana");
 check(
   "el merge no resucita lo que el adulto borró",
   eventosDe("ana").length === 0,
@@ -410,18 +494,33 @@ await reset();
 entrarComo("ana");
 hidratar("ana");
 storage.saveConfig({ metodo: "SELEC", nivel: "Global", nombre: "Ana", palabras: [] });
-storage.recordarUsuario("ana");
-storage.limpiarDatosLocales("ana");
+storage.limpiarDatosLocales(CTA_A, "ana");
 check(
-  "borrar los datos de la tablet no deja rastro de ese usuario",
-  [...almacen.keys()].filter((k) => k.endsWith("_ana")).length === 0
+  "borrar los datos de la tablet no deja rastro de ese chico",
+  [...almacen.keys()].filter((k) => k.includes("_ana")).length === 0
+);
+
+// Cambiar de cuenta se lleva a TODOS los chicos de esa cuenta, no sólo al activo.
+await reset();
+validarCuenta(CTA_A);
+entrarComo("ana", CTA_A);
+storage.saveConfig({ metodo: "SELEC", nivel: "Global", nombre: "Ana", palabras: [] });
+entrarComo("agus", CTA_A);
+storage.saveConfig({ metodo: "SELEC", nivel: "Global", nombre: "Agus", palabras: [] });
+entrarComo("otro", CTA_B);
+storage.saveConfig({ metodo: "SELEC", nivel: "Global", nombre: "Otro", palabras: [] });
+entrarComo("ana", CTA_A);
+storage.salirDeCuenta();
+check(
+  "cambiar de cuenta borra a todos los chicos de esa cuenta",
+  [...almacen.keys()].filter((k) => k.includes(CTA_A)).length === 0
 );
 check(
-  "pero el nombre sigue en la lista, para no tipearlo cada vez",
-  storage.listarUsuariosLocales().includes("ana")
+  "pero no toca los de otra cuenta que hubiera quedado en el dispositivo",
+  configDe("otro", CTA_B)?.nombre === "Otro"
 );
-storage.limpiarDatosLocales("ana", { olvidar: true });
-check("y con olvidar:true sí desaparece", !storage.listarUsuariosLocales().includes("ana"));
+check("y deja la sesión cerrada", storage.getSessionData() === null);
+check("y la cuenta sin validar", storage.getCuenta() === null);
 
 // -----------------------------------------------------------------------------
 

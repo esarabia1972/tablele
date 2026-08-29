@@ -15,11 +15,7 @@
 //    estándar Fetch, o el navegador lo rechaza en silencio. El informe entero
 //    (hasta 2000 eventos) viaja en un POST normal, nunca con keepalive.
 
-import {
-  BASES,
-  K_SESSION,
-  claveDe,
-} from "@/lib/claves";
+import { BASES, K_SESSION, claveDe } from "@/lib/claves";
 import { mergeEventos, mergeUso } from "@/lib/eventos";
 
 /**
@@ -28,12 +24,16 @@ import { mergeEventos, mergeUso } from "@/lib/eventos";
  */
 export type Parte = "config" | "stars" | "stats" | "uso";
 
+/** Un pendiente pertenece a un par (cuenta, chico), no a un nombre suelto. */
 type Pendiente = {
+  accountId: string;
   username: string;
   config: boolean;
   stars: boolean;
   stats: boolean;
 };
+
+type Sesion = { accountId: string; username: string };
 
 /**
  * Límite duro del estándar Fetch para `keepalive` y para `sendBeacon`:
@@ -53,21 +53,27 @@ let pendiente: Pendiente | null = null;
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
 let flushInstalled = false;
 
-function getUsername(): string | null {
+function getSesion(): Sesion | null {
   try {
-    const s = localStorage.getItem(K_SESSION);
-    return s ? (JSON.parse(s).username ?? null) : null;
+    const s = JSON.parse(localStorage.getItem(K_SESSION) || "null");
+    if (!s || typeof s.username !== "string" || typeof s.accountId !== "string") return null;
+    return { accountId: s.accountId, username: s.username };
   } catch {
     return null;
   }
 }
 
-function leer(base: string, username: string): string | null {
+function leer(base: string, accountId: string, username: string): string | null {
   try {
-    return localStorage.getItem(claveDe(base, username));
+    return localStorage.getItem(claveDe(base, accountId, username));
   } catch {
     return null;
   }
+}
+
+/** Los dos valores identifican a un chico; se pasan siempre juntos. */
+function mismoChico(a: Sesion, b: { accountId: string; username: string }): boolean {
+  return a.accountId === b.accountId && a.username === b.username;
 }
 
 function parsear<T>(raw: string | null, fallback: T): T {
@@ -84,45 +90,45 @@ function parsear<T>(raw: string | null, fallback: T): T {
  * navegador. Hasta que eso pase no se le sube el informe: si no, entrar con un
  * usuario en un dispositivo nuevo le borraría el historial en el servidor.
  */
-function estaHidratado(username: string): boolean {
-  return leer(BASES.syncAt, username) !== null;
+function estaHidratado(accountId: string, username: string): boolean {
+  return leer(BASES.syncAt, accountId, username) !== null;
 }
 
-function marcarSucio(username: string) {
+function marcarSucio(accountId: string, username: string) {
   try {
-    localStorage.setItem(claveDe(BASES.dirtyAt, username), String(Date.now()));
+    localStorage.setItem(claveDe(BASES.dirtyAt, accountId, username), String(Date.now()));
   } catch {}
 }
 
-function limpiarSucio(username: string) {
+function limpiarSucio(accountId: string, username: string) {
   try {
-    localStorage.removeItem(claveDe(BASES.dirtyAt, username));
+    localStorage.removeItem(claveDe(BASES.dirtyAt, accountId, username));
   } catch {}
 }
 
 function collectPayload(p: Pendiente, opts: { sinStats?: boolean } = {}): Record<string, unknown> {
-  const { username } = p;
-  const payload: Record<string, unknown> = { username };
+  const { accountId, username } = p;
+  const payload: Record<string, unknown> = { accountId, username };
 
-  // La config tampoco se sube desde un dispositivo que no bajó al usuario:
+  // La config tampoco se sube desde un dispositivo que no bajó al chico:
   // si el pull falló, subirla pisaría en el servidor las palabras buenas con
   // las de acá. Queda marcada como sucia y sube tras el primer pull OK.
-  if (p.config && !opts.sinStats && estaHidratado(username)) {
-    const raw = leer(BASES.config, username);
+  if (p.config && !opts.sinStats && estaHidratado(accountId, username)) {
+    const raw = leer(BASES.config, accountId, username);
     if (raw) payload.config = parsear(raw, undefined);
   }
   if (p.stars) {
-    const raw = leer(BASES.stars, username);
+    const raw = leer(BASES.stars, accountId, username);
     if (raw !== null) {
       const n = parseInt(raw, 10);
       if (Number.isFinite(n)) payload.stars = n;
     }
   }
-  // Regla 2: el informe sólo se sube si este navegador ya bajó al usuario.
-  if (p.stats && !opts.sinStats && estaHidratado(username)) {
+  // Regla 2: el informe sólo se sube si este navegador ya bajó al chico.
+  if (p.stats && !opts.sinStats && estaHidratado(accountId, username)) {
     payload.stats = {
-      eventos: parsear(leer(BASES.eventos, username), [] as unknown[]),
-      uso: parsear(leer(BASES.uso, username), {} as Record<string, number>),
+      eventos: parsear(leer(BASES.eventos, accountId, username), [] as unknown[]),
+      uso: parsear(leer(BASES.uso, accountId, username), {} as Record<string, number>),
     };
   }
   return payload;
@@ -158,21 +164,21 @@ async function pushNow(p: Pendiente | null): Promise<void> {
   // Nada bajó todavía de este usuario: no se sube nada que pueda pisar su fila.
   // Se avisa con un error para que la pantalla de Configuración pueda decir
   // "guardado acá, todavía sin sincronizar" en vez de mentir.
-  if ((p.config || p.stats) && !estaHidratado(p.username)) {
-    marcarSucio(p.username);
+  if ((p.config || p.stats) && !estaHidratado(p.accountId, p.username)) {
+    marcarSucio(p.accountId, p.username);
     throw new Error(`sin hidratar: ${p.username} todavía no se bajó del servidor`);
   }
 
   const payload = collectPayload(p);
-  // Sólo `username`: no hay nada real que subir.
-  if (Object.keys(payload).length <= 1) return;
+  // Sólo el par identificador: no hay nada real que subir.
+  if (Object.keys(payload).length <= 2) return;
 
   try {
     await postDatos(payload);
-    limpiarSucio(p.username);
+    limpiarSucio(p.accountId, p.username);
   } catch (err) {
     // Queda sucio: el próximo syncFromServer no lo va a pisar y lo reintenta.
-    marcarSucio(p.username);
+    marcarSucio(p.accountId, p.username);
     if (process.env.NODE_ENV !== "production") console.warn("[sync]", err);
     throw err;
   }
@@ -185,13 +191,15 @@ async function pushNow(p: Pendiente | null): Promise<void> {
  */
 export function schedulePush(parte: Parte) {
   if (typeof window === "undefined") return;
-  const username = getUsername();
-  if (!username) return;
+  const sesion = getSesion();
+  if (!sesion) return;
+  const { accountId, username } = sesion;
 
-  marcarSucio(username);
+  marcarSucio(accountId, username);
 
-  // Regla 1: si había algo pendiente de OTRO usuario, se manda ya, con SU nombre.
-  if (pendiente && pendiente.username !== username) {
+  // Regla 1: si había algo pendiente de OTRO chico —otro nombre, u otra cuenta
+  // con el mismo nombre— se manda ya, bajo SU par.
+  if (pendiente && !mismoChico(sesion, pendiente)) {
     const anterior = pendiente;
     pendiente = null;
     if (pushTimer) {
@@ -201,7 +209,7 @@ export function schedulePush(parte: Parte) {
     void pushNow(anterior).catch(() => {});
   }
 
-  pendiente = pendiente ?? { username, config: false, stars: false, stats: false };
+  pendiente = pendiente ?? { accountId, username, config: false, stars: false, stats: false };
   pendiente[parte === "uso" ? "stats" : parte] = true;
 
   installFlush();
@@ -243,12 +251,16 @@ export async function cerrarSesionSync(): Promise<boolean> {
   }
   const p = pendiente;
   pendiente = null;
-  const username = p?.username || getUsername();
+  const chico = p ?? getSesion();
   try {
     await pushNow(p);
   } catch {}
-  if (!username) return false;
-  return estaHidratado(username) && leer(BASES.dirtyAt, username) === null;
+  if (!chico) return false;
+  const { accountId, username } = chico;
+  return (
+    estaHidratado(accountId, username) &&
+    leer(BASES.dirtyAt, accountId, username) === null
+  );
 }
 
 /**
@@ -257,7 +269,7 @@ export async function cerrarSesionSync(): Promise<boolean> {
  *   servidor, gana lo local y se reencola la subida.
  * - eventos/uso: siempre merge. Son append-only, así que nunca se pierde nada.
  */
-export async function syncFromServer(username: string): Promise<void> {
+export async function syncFromServer(accountId: string, username: string): Promise<void> {
   if (typeof window === "undefined") return;
 
   let json: {
@@ -271,9 +283,10 @@ export async function syncFromServer(username: string): Promise<void> {
   } | null = null;
 
   try {
-    const res = await fetch(`/api/datos?username=${encodeURIComponent(username)}`, {
-      cache: "no-store",
-    });
+    const res = await fetch(
+      `/api/datos?accountId=${encodeURIComponent(accountId)}&username=${encodeURIComponent(username)}`,
+      { cache: "no-store" }
+    );
     json = await res.json();
   } catch {
     // Sin conexión: seguimos con lo local, intacto.
@@ -283,19 +296,19 @@ export async function syncFromServer(username: string): Promise<void> {
   if (!json?.ok) return;
 
   const data = json.data;
-  const borradoAt = parseInt(leer(BASES.borradoAt, username) || "0", 10) || 0;
+  const borradoAt = parseInt(leer(BASES.borradoAt, accountId, username) || "0", 10) || 0;
   const diaBorrado = borradoAt ? new Date(borradoAt).toISOString().slice(0, 10) : "";
 
-  // Fila vacía (usuario recién creado): no hay nada que bajar, pero el usuario
-  // queda hidratado igual — ya sabemos que el servidor no tiene nada suyo.
+  // Fila vacía (chico recién creado): no hay nada que bajar, pero queda
+  // hidratado igual — ya sabemos que el servidor no tiene nada suyo.
   if (!data) {
     try {
-      localStorage.setItem(claveDe(BASES.syncAt, username), new Date(0).toISOString());
+      localStorage.setItem(claveDe(BASES.syncAt, accountId, username), new Date(0).toISOString());
     } catch {}
     return;
   }
 
-  const dirtyAt = parseInt(leer(BASES.dirtyAt, username) || "0", 10) || 0;
+  const dirtyAt = parseInt(leer(BASES.dirtyAt, accountId, username) || "0", 10) || 0;
   const remotoAt = Date.parse(data.updated_at || "") || 0;
   // Hay cambios locales sin confirmar y son posteriores a lo que tiene el
   // servidor: el pull NO puede pisarlos (este era el bug de "guardo las
@@ -304,28 +317,28 @@ export async function syncFromServer(username: string): Promise<void> {
 
   try {
     if (data.config && !localGana) {
-      localStorage.setItem(claveDe(BASES.config, username), JSON.stringify(data.config));
+      localStorage.setItem(claveDe(BASES.config, accountId, username), JSON.stringify(data.config));
     }
     if (typeof data.stars === "number" && !localGana) {
-      localStorage.setItem(claveDe(BASES.stars, username), String(data.stars));
+      localStorage.setItem(claveDe(BASES.stars, accountId, username), String(data.stars));
     }
 
     // Eventos y uso: merge siempre, gane quien gane.
     const eventos = mergeEventos(
-      parsear(leer(BASES.eventos, username), [] as unknown[]),
+      parsear(leer(BASES.eventos, accountId, username), [] as unknown[]),
       data.stats?.eventos,
       borradoAt
     );
     const uso = mergeUso(
-      parsear(leer(BASES.uso, username), {} as Record<string, number>),
+      parsear(leer(BASES.uso, accountId, username), {} as Record<string, number>),
       data.stats?.uso,
       diaBorrado
     );
-    localStorage.setItem(claveDe(BASES.eventos, username), JSON.stringify(eventos));
-    localStorage.setItem(claveDe(BASES.uso, username), JSON.stringify(uso));
+    localStorage.setItem(claveDe(BASES.eventos, accountId, username), JSON.stringify(eventos));
+    localStorage.setItem(claveDe(BASES.uso, accountId, username), JSON.stringify(uso));
 
     localStorage.setItem(
-      claveDe(BASES.syncAt, username),
+      claveDe(BASES.syncAt, accountId, username),
       data.updated_at || new Date().toISOString()
     );
   } catch {}
@@ -335,7 +348,7 @@ export async function syncFromServer(username: string): Promise<void> {
     schedulePush("config");
     schedulePush("stats");
   } else {
-    limpiarSucio(username);
+    limpiarSucio(accountId, username);
   }
 }
 
@@ -344,10 +357,11 @@ export async function syncFromServer(username: string): Promise<void> {
  * el servidor acepta vaciar `stats`; cualquier otro push que llegue con el
  * informe vacío se fusiona en vez de pisar.
  */
-export async function borrarEnServidor(username: string): Promise<void> {
+export async function borrarEnServidor(accountId: string, username: string): Promise<void> {
   if (typeof window === "undefined") return;
   try {
     await postDatos({
+      accountId,
       username,
       stats: { eventos: [], uso: {} },
       stars: 0,
@@ -373,7 +387,7 @@ function flushBeacon() {
   if (!p) return;
 
   const payload = collectPayload(p);
-  if (Object.keys(payload).length <= 1) return;
+  if (Object.keys(payload).length <= 2) return;
 
   // sendBeacon comparte la cuota de 64 KiB y devuelve false si no entra.
   // Si el informe completo no entra, mandamos al menos config+estrellas (que
@@ -383,14 +397,14 @@ function flushBeacon() {
   let parcial = false;
   if (blob.size > LIMITE_KEEPALIVE) {
     const reducido = collectPayload(p, { sinStats: true });
-    if (Object.keys(reducido).length <= 1) {
-      marcarSucio(p.username);
+    if (Object.keys(reducido).length <= 2) {
+      marcarSucio(p.accountId, p.username);
       return;
     }
     blob = new Blob([JSON.stringify(reducido)], { type: "application/json" });
     parcial = true;
     if (blob.size > LIMITE_KEEPALIVE) {
-      marcarSucio(p.username);
+      marcarSucio(p.accountId, p.username);
       return;
     }
   }
@@ -402,14 +416,20 @@ function flushBeacon() {
     enviado = false;
   }
   if (!enviado) {
-    marcarSucio(p.username);
+    marcarSucio(p.accountId, p.username);
     return;
   }
 
   if (parcial) {
     // El informe no viajó: queda pendiente y sucio.
-    pendiente = { username: p.username, config: false, stars: false, stats: true };
-    marcarSucio(p.username);
+    pendiente = {
+      accountId: p.accountId,
+      username: p.username,
+      config: false,
+      stars: false,
+      stats: true,
+    };
+    marcarSucio(p.accountId, p.username);
     return;
   }
 

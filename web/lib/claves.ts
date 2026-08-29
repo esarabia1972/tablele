@@ -4,10 +4,14 @@
 // —que a su vez importa sync.ts— y crear un ciclo de módulos.
 
 export const K_SESSION = "tablele.session";
-/** Usuarios que ya entraron en ESTE dispositivo (conveniencia de login). */
-export const K_USUARIOS = "tablele.usuarios";
+/** La cuenta validada en ESTE dispositivo. Sobrevive al "Salir" del chico. */
+export const K_CUENTA = "tablele.cuenta";
 /** Flag de la migración de claves legacy sin sufijo de usuario. */
 export const K_MIGRADO = "tablele.migradoLegacy";
+/** Flag de la migración de claves de un solo chico a (cuenta, chico). */
+export const K_MIGRADO_CUENTAS = "tablele.migradoCuentas";
+/** Lista de chicos por dispositivo, del esquema anterior. Sólo se borra. */
+export const K_USUARIOS_VIEJO = "tablele.usuarios";
 
 /** Bases de las claves por usuario: la clave real es `${base}_${username}`. */
 export const BASES = {
@@ -26,14 +30,29 @@ export const BASES = {
 
 export type Base = (typeof BASES)[keyof typeof BASES];
 
-export function claveDe(base: string, username: string): string {
-  return `${base}_${username}`;
+/**
+ * Clave de localStorage de un chico.
+ *
+ * Lleva la cuenta además del nombre porque el nombre dejó de ser una identidad
+ * global: dos adultos distintos pueden tener cada uno su Manu, y sus datos no
+ * pueden tocarse.
+ */
+export function claveDe(base: string, accountId: string, username: string): string {
+  return `${base}_${accountId}_${username}`;
 }
 
 /** Meta de estrellas: 1 por juego terminado, con GOAL llega al premio. */
 export const GOAL = 5;
 
 export const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
+export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+/** uuid v4 de Postgres. Se valida SIEMPRE antes de mandarlo a PostgREST. */
+export const ACCOUNT_ID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function normalizarEmail(raw: string): string {
+  return raw.trim().toLowerCase();
+}
 
 /**
  * Normaliza lo que tipea el adulto a un username válido:

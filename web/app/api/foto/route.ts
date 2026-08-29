@@ -1,30 +1,29 @@
 import { NextResponse } from "next/server";
-import { USERNAME_RE } from "@/lib/claves";
+import { ACCOUNT_ID_RE, USERNAME_RE } from "@/lib/claves";
+import {
+  BUCKET_FOTOS,
+  SupabaseError,
+  TABLA_DATOS,
+  hayStorage,
+  sbGet,
+  sbHeaders,
+  sbUrl,
+} from "@/lib/supabase";
 
-// Sube una foto (base64) a Supabase Storage (bucket público "fotos")
-// y devuelve la URL pública.
-
-const SB_URL = (() => {
-  const raw = process.env.SUPABASE_URL?.trim();
-  if (!raw) return undefined;
-  try {
-    return new URL(raw).origin;
-  } catch {
-    return undefined;
-  }
-})();
-const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-const BUCKET = "fotos";
+// Sube una foto (base64) a Supabase Storage y devuelve la URL pública.
+// El path lleva la cuenta además del chico: si no, dos adultos con un chico
+// que se llama igual se pisarían las fotos entre sí.
 
 export async function POST(request: Request) {
   try {
-    const { username, dataUrl } = await request.json();
-    const user = String(username || "").trim().toLowerCase();
+    const { accountId, username, dataUrl } = await request.json();
+    const cuenta = String(accountId || "").trim();
+    const chico = String(username || "").trim().toLowerCase();
 
-    if (!USERNAME_RE.test(user)) {
+    if (!ACCOUNT_ID_RE.test(cuenta) || !USERNAME_RE.test(chico)) {
       return NextResponse.json({ ok: false }, { status: 403 });
     }
-    if (!SB_URL || !SB_KEY) {
+    if (!hayStorage()) {
       return NextResponse.json({ ok: false, reason: "storage-no-configurado" });
     }
 
@@ -37,28 +36,43 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, message: "Imagen demasiado grande" }, { status: 413 });
     }
 
-    const path = `${user}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
-    const res = await fetch(`${SB_URL}/storage/v1/object/${BUCKET}/${path}`, {
+    // El chico tiene que pertenecer a esa cuenta: si no, cualquiera podría
+    // dejar archivos colgando del espacio de otro adulto.
+    const filas = await sbGet<{ username: string }[]>(
+      `/rest/v1/${TABLA_DATOS}?account_id=eq.${cuenta}&username=eq.${encodeURIComponent(
+        chico
+      )}&select=username`
+    );
+    if (!filas?.[0]) {
+      return NextResponse.json({ ok: false, motivo: "chico-ajeno" }, { status: 403 });
+    }
+
+    const path = `${cuenta}/${chico}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+    const res = await fetch(sbUrl(`/storage/v1/object/${BUCKET_FOTOS}/${path}`), {
       method: "POST",
-      headers: {
-        apikey: SB_KEY,
-        Authorization: `Bearer ${SB_KEY}`,
-        "Content-Type": `image/${m[1]}`,
-        "x-upsert": "true",
-      },
+      headers: sbHeaders({ "Content-Type": `image/${m[1]}`, "x-upsert": "true" }),
       body: new Uint8Array(buf),
     });
 
     if (!res.ok) {
       const detail = (await res.text()).slice(0, 300);
-      return NextResponse.json({ ok: false, sbStatus: res.status, sbError: detail });
+      return NextResponse.json(
+        { ok: false, sbStatus: res.status, sbError: detail },
+        { status: 502 }
+      );
     }
 
     return NextResponse.json({
       ok: true,
-      url: `${SB_URL}/storage/v1/object/public/${BUCKET}/${path}`,
+      url: sbUrl(`/storage/v1/object/public/${BUCKET_FOTOS}/${path}`),
     });
-  } catch {
+  } catch (err) {
+    if (err instanceof SupabaseError) {
+      return NextResponse.json(
+        { ok: false, sbStatus: err.sbStatus, sbError: err.sbError },
+        { status: 502 }
+      );
+    }
     return NextResponse.json({ ok: false }, { status: 500 });
   }
 }

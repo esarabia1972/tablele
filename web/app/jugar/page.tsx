@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { getSessionData, getStars, setStars, getConfig, addUso, expirarEstrellas, esNivelSilabica, migrarLegacy, GOAL } from "@/lib/storage";
+import { getSessionData, getStars, setStars, getConfig, addUso, expirarEstrellas, esNivelSilabica, migrarLegacy, migrarACuentas, GOAL } from "@/lib/storage";
 import { syncFromServer } from "@/lib/sync";
 import { esElegibleSilabas } from "@/lib/silabas";
 import TopBar from "@/components/TopBar";
@@ -49,7 +49,11 @@ export default function JugarPage() {
       // las claves compartidas se adoptan para ESE chico, que es de quien son,
       // y no para el que entre después. Corre una sola vez por dispositivo.
       migrarLegacy(s.username);
-      await syncFromServer(s.username);
+      // Y de ahí al esquema por cuenta. El par ya está verificado contra el
+      // servidor (venimos de un acceso exitoso), así que no puede asignarle
+      // los datos de un chico a la cuenta equivocada.
+      migrarACuentas(s.accountId, s.username);
+      await syncFromServer(s.accountId, s.username);
       // Partida a medias con más de 1 h sin jugar: arranca de cero
       expirarEstrellas();
       // El nombre del niño/a se define en Configuración (puede estar vacío)

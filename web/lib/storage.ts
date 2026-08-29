@@ -4,11 +4,14 @@ import { type PalabraDefault, palabrasDefault } from "@/data/palabras-default";
 import { schedulePush, borrarEnServidor } from "@/lib/sync";
 import { MAX_DIAS_USO, MAX_EVENTOS } from "@/lib/eventos";
 import {
+  ACCOUNT_ID_RE,
   BASES,
   GOAL as GOAL_CONST,
+  K_CUENTA,
   K_MIGRADO,
+  K_MIGRADO_CUENTAS,
   K_SESSION,
-  K_USUARIOS,
+  K_USUARIOS_VIEJO,
   claveDe,
   fechaLocal as fechaLocalPura,
 } from "@/lib/claves";
@@ -40,22 +43,84 @@ const STARS_TTL_MS = 60 * 60 * 1000; // 1 hora sin jugar resetea la partida a me
 
 export const fechaLocal = fechaLocalPura;
 
-// --- Sesión -----------------------------------------------------------------
+// --- Cuenta del adulto ------------------------------------------------------
 
-export function getSessionData(): { username: string } | null {
+/** La cuenta validada en este dispositivo. No se borra al salir de un chico. */
+export type Cuenta = {
+  accountId: string;
+  email: string;
+  nombre?: string;
+  /** Último listado de chicos que devolvió el servidor, para abrir sin esperar. */
+  chicos?: string[];
+};
+
+export function getCuenta(): Cuenta | null {
   if (typeof window === "undefined") return null;
   try {
-    const data = localStorage.getItem(K_SESSION);
-    const parsed = data ? JSON.parse(data) : null;
-    // Sesiones viejas (por email) quedan invalidadas
-    if (!parsed || typeof parsed.username !== "string") return null;
+    const parsed = JSON.parse(localStorage.getItem(K_CUENTA) || "null");
+    if (!parsed || !ACCOUNT_ID_RE.test(parsed.accountId || "")) return null;
     return parsed;
-  } catch (e) {
+  } catch {
     return null;
   }
 }
 
-export function setSessionData(data: { username: string }) {
+export function setCuenta(c: Cuenta) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(K_CUENTA, JSON.stringify(c));
+}
+
+/** Guarda el listado de chicos sin tocar el resto de la cuenta. */
+export function setChicosDeCuenta(chicos: string[]) {
+  const c = getCuenta();
+  if (!c) return;
+  setCuenta({ ...c, chicos });
+}
+
+/**
+ * Saca la cuenta de este dispositivo Y los datos de todos sus chicos.
+ * Es lo que hace "Cambiar de cuenta": si quedaran, el próximo adulto vería
+ * rastros de los chicos del anterior.
+ */
+export function salirDeCuenta() {
+  if (typeof window === "undefined") return;
+  const c = getCuenta();
+  if (c) {
+    const prefijos = Object.values(BASES).map((b) => `${b}_${c.accountId}_`);
+    // Recorrido con key(i)/length —la API estándar de Storage— y no con
+    // Object.keys(localStorage), que depende de que las claves sean
+    // enumerables. Se juntan primero y se borran después, porque borrar
+    // mientras se recorre corre los índices.
+    const aBorrar: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && prefijos.some((pre) => k.startsWith(pre))) aBorrar.push(k);
+    }
+    aBorrar.forEach((k) => localStorage.removeItem(k));
+  }
+  localStorage.removeItem(K_CUENTA);
+  localStorage.removeItem(K_SESSION);
+}
+
+// --- Sesión (qué chico está jugando) ----------------------------------------
+
+export type Sesion = { accountId: string; username: string };
+
+export function getSessionData(): Sesion | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const parsed = JSON.parse(localStorage.getItem(K_SESSION) || "null");
+    // Sin cuenta no hay sesión válida: las sesiones del esquema anterior
+    // (sólo username, y antes sólo email) caen acá y mandan al login.
+    if (!parsed || typeof parsed.username !== "string") return null;
+    if (!ACCOUNT_ID_RE.test(parsed.accountId || "")) return null;
+    return { accountId: parsed.accountId, username: parsed.username };
+  } catch {
+    return null;
+  }
+}
+
+export function setSessionData(data: Sesion) {
   if (typeof window === "undefined") return;
   localStorage.setItem(K_SESSION, JSON.stringify(data));
 }
@@ -66,54 +131,23 @@ export function clearSessionData() {
 }
 
 /**
- * Clave de este usuario, o null si NO hay sesión.
+ * Clave de este chico, o null si NO hay sesión.
  *
- * Devolver null (y no la clave "pelada") es deliberado: antes, sin sesión se
- * leía y escribía en `tablele.config` sin sufijo —un bucket compartido por
- * todos los chicos— y eso era la vía por la que la configuración de uno
- * terminaba apareciéndole a otro.
+ * Devolver null (y no una clave "pelada") es deliberado: sin eso, una escritura
+ * sin sesión iría a un bucket compartido y la configuración de un chico
+ * terminaría apareciéndole a otro.
  */
 function userKey(base: string): string | null {
-  const session = getSessionData();
-  return session?.username ? claveDe(base, session.username) : null;
+  const s = getSessionData();
+  return s ? claveDe(base, s.accountId, s.username) : null;
 }
 
-// --- Usuarios conocidos en este dispositivo ---------------------------------
-
-/** Usuarios que ya entraron acá. Sólo para ofrecerlos en el login. */
-export function listarUsuariosLocales(): string[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = JSON.parse(localStorage.getItem(K_USUARIOS) || "[]");
-    return Array.isArray(raw) ? raw.filter((u) => typeof u === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
-export function recordarUsuario(username: string) {
-  if (typeof window === "undefined") return;
-  const lista = listarUsuariosLocales().filter((u) => u !== username);
-  lista.unshift(username);
-  localStorage.setItem(K_USUARIOS, JSON.stringify(lista.slice(0, 12)));
-}
-
-export function olvidarUsuario(username: string) {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(
-    K_USUARIOS,
-    JSON.stringify(listarUsuariosLocales().filter((u) => u !== username))
-  );
-}
+// --- Migraciones de dispositivo ---------------------------------------------
 
 /**
  * Adopta las claves legacy sin sufijo (de la versión de un solo chico) para el
- * primer usuario que entra en este dispositivo. Corre UNA vez.
- *
- * Reemplaza al bloque que hacía esto mismo a nivel de módulo y hacia un
- * username fijo (`manu`): con eso, cualquier dato escrito sin sesión terminaba
- * siendo de ese usuario. Acá nada se borra: lo legacy queda respaldado bajo
- * `tablele.legacy.*` por si hiciera falta recuperarlo a mano.
+ * chico que está jugando. Corre UNA vez. Nada se borra: lo legacy queda
+ * respaldado bajo `tablele.legacy.*`.
  */
 export function migrarLegacy(username: string) {
   if (typeof window === "undefined" || !username) return;
@@ -123,30 +157,52 @@ export function migrarLegacy(username: string) {
   for (const base of bases) {
     const legacy = localStorage.getItem(base);
     if (legacy === null) continue;
-    const destino = claveDe(base, username);
+    const destino = `${base}_${username}`;
     if (localStorage.getItem(destino) === null) {
       localStorage.setItem(destino, legacy);
     }
-    // No se borra: se archiva.
     localStorage.setItem(base.replace("tablele.", "tablele.legacy."), legacy);
     localStorage.removeItem(base);
   }
-  // Residuo de un esquema todavía más viejo; nunca se escribe.
   localStorage.removeItem("tablele.stats");
   localStorage.setItem(K_MIGRADO, "1");
 }
 
 /**
- * Borra los datos de un usuario SÓLO en este dispositivo (el servidor no se toca).
- * Por defecto conserva el nombre en la lista de la tablet: es sólo un nombre,
- * sin datos, y es lo que evita que el adulto tenga que tipearlo cada vez.
+ * Pasa las claves del esquema de un solo chico (`tablele.config_manu`) al de
+ * (cuenta, chico) (`tablele.config_<cuenta>_manu`). Corre UNA vez.
+ *
+ * Se llama sólo después de un acceso exitoso, o sea con el par ya verificado
+ * contra el servidor: no puede asignarle los datos de un chico a otra cuenta.
+ * Acá sí se borra el original —a diferencia de migrarLegacy()— porque el dato
+ * no es ambiguo y duplicar el informe entero llenaría el localStorage.
  */
-export function limpiarDatosLocales(username: string, opts: { olvidar?: boolean } = {}) {
-  if (typeof window === "undefined" || !username) return;
+export function migrarACuentas(accountId: string, username: string) {
+  if (typeof window === "undefined" || !accountId || !username) return;
+  if (localStorage.getItem(K_MIGRADO_CUENTAS)) return;
+
+  for (const base of Object.values(BASES)) {
+    const viejo = `${base}_${username}`;
+    const valor = localStorage.getItem(viejo);
+    if (valor === null) continue;
+    const destino = claveDe(base, accountId, username);
+    if (localStorage.getItem(destino) === null) {
+      localStorage.setItem(destino, valor);
+    }
+    localStorage.removeItem(viejo);
+  }
+  // Las pills por dispositivo del esquema anterior: ahora los chicos los
+  // devuelve /api/cuenta, que funciona en cualquier tablet.
+  localStorage.removeItem(K_USUARIOS_VIEJO);
+  localStorage.setItem(K_MIGRADO_CUENTAS, "1");
+}
+
+/** Borra los datos de un chico SÓLO en este dispositivo (el servidor no se toca). */
+export function limpiarDatosLocales(accountId: string, username: string) {
+  if (typeof window === "undefined" || !accountId || !username) return;
   Object.values(BASES).forEach((base) => {
-    localStorage.removeItem(claveDe(base, username));
+    localStorage.removeItem(claveDe(base, accountId, username));
   });
-  if (opts.olvidar) olvidarUsuario(username);
 }
 
 // --- Configuración ----------------------------------------------------------
@@ -299,13 +355,12 @@ export function esNivelSilabica(nivel?: string): boolean {
 export function clearMetricas() {
   const session = getSessionData();
   if (typeof window === "undefined" || !session) return;
-  const { username } = session;
+  const { accountId, username } = session;
 
-  localStorage.setItem(claveDe(BASES.borradoAt, username), String(Date.now()));
+  localStorage.setItem(claveDe(BASES.borradoAt, accountId, username), String(Date.now()));
   [BASES.eventos, BASES.uso, BASES.stars, BASES.lastPlayed].forEach((base) => {
-    localStorage.removeItem(claveDe(base, username));
+    localStorage.removeItem(claveDe(base, accountId, username));
   });
-  localStorage.removeItem(claveDe("tablele.stats", username)); // formato viejo
 
-  void borrarEnServidor(username);
+  void borrarEnServidor(accountId, username);
 }

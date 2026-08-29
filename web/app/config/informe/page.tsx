@@ -56,7 +56,7 @@ export default function InformePage() {
       return;
     }
     (async () => {
-      await syncFromServer(s.username);
+      await syncFromServer(s.accountId, s.username);
       setEventos(getEventos());
       setUso(getUso());
     })();
