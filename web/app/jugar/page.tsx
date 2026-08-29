@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { getSessionData, getStars, setStars, getConfig, addUso, expirarEstrellas, esNivelSilabica, GOAL } from "@/lib/storage";
+import { getSessionData, getStars, setStars, getConfig, addUso, expirarEstrellas, esNivelSilabica, migrarLegacy, GOAL } from "@/lib/storage";
 import { syncFromServer } from "@/lib/sync";
 import { esElegibleSilabas } from "@/lib/silabas";
 import TopBar from "@/components/TopBar";
@@ -45,6 +45,10 @@ export default function JugarPage() {
       return;
     }
     (async () => {
+      // Al actualizar desde la versión sin usuarios queda una sesión ya abierta:
+      // las claves compartidas se adoptan para ESE chico, que es de quien son,
+      // y no para el que entre después. Corre una sola vez por dispositivo.
+      migrarLegacy(s.username);
       await syncFromServer(s.username);
       // Partida a medias con más de 1 h sin jugar: arranca de cero
       expirarEstrellas();
