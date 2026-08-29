@@ -116,9 +116,6 @@ export default function LoginPage() {
 
           {conocidos.length > 0 && !confirmarAlta && (
             <div className="mt-3">
-              <p className="text-xs text-gray-500 font-bold uppercase tracking-wide mb-1.5">
-                En esta tablet
-              </p>
               <div className="flex flex-wrap gap-2">
                 {conocidos.map((u) => (
                   <button
