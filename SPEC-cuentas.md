@@ -487,6 +487,76 @@ En `lib/datos.run-tests.ts`:
 
 ---
 
+## 14. Compartir un chico entre dos adultos — decisión pendiente
+
+**El caso.** Manu entra con el correo de su madre, y además la profesional que lo
+atiende necesita entrar para ver el avance y **modificar las palabras**. Hoy no
+se puede: un chico pertenece a una sola cuenta (§2).
+
+No se desarrolla ahora. Esto es el análisis, para no tener que rehacerlo.
+
+### 14.1. Opciones
+
+**A. Un segundo correo en la fila del chico** (`account_id_2`).
+
+- 🟢 Cambio mínimo: una columna y una migración.
+- 🔴 **Tope duro en dos.** El tercer adulto —padre y madre separados, dos
+  terapeutas de una institución, la abuela de los martes— obliga a rehacerlo
+  igual, pero ya con datos en producción.
+- 🔴 Toda consulta pasa a `account_id=eq.X or account_id_2=eq.X` en las cuatro
+  rutas, con peor historia de índices.
+- 🔴 Aparece una pregunta que hoy no existe: quién es el dueño. Si la
+  profesional deja de atender al chico, sacarla es un `update` con lógica en vez
+  de borrar una fila.
+
+**B. Tabla de accesos** `(account_id, nino_id, rol)`.
+
+```sql
+ninos     id uuid PK, created_at
+accesos   account_id uuid FK, nino_id uuid FK, rol text, PK (account_id, nino_id)
+-- tablele_datos pasa a colgar de nino_id en vez de (account_id, username)
+```
+
+- 🟢 Sin límite de adultos. Quitar un acceso es un DELETE.
+- 🟢 `rol` distingue "ve el informe" de "edita las palabras", que es exactamente
+  la diferencia entre una madre y una terapeuta.
+- 🔴 El chico necesita un id propio: `username` deja de identificarlo. Se toca el
+  cliente entero otra vez, incluidas las claves de localStorage.
+
+**C. Modo casa por enlace o código.** El chico vive en la cuenta de la
+profesional, y la familia entra por un enlace por paciente, sin cuenta propia.
+Es lo que propone `TABLELE-tecnico-funcional.md` §3 para el proyecto de lenguaje.
+
+**D. Compartir sólo el informe, de sólo lectura.** Mucho más barato, pero no
+cubre "modificar las palabras", que es la mitad del pedido.
+
+### 14.2. Recomendación
+
+**B, y no ahora.** A es una tapa, no un modelo: el trabajo de sostenerla (las
+consultas con `or`, la lógica de dueño) es casi el mismo que el de introducir la
+tabla, y hay que hacerlo dos veces.
+
+**El disparador es el primer chico que de verdad necesite dos adultos.** Antes de
+eso no se sabe cuál de los dos casos es el principal, y eso decide el esquema.
+
+### 14.3. Lo que hay que resolver ANTES de elegir
+
+**¿De quién es el chico?** La spec de arriba asume que el dueño es quien lo crea.
+Pero en terapia la profesional define el vocabulario, la etapa y el nivel, y la
+familia ejecuta en casa: ahí el dueño natural es la profesional y el caso es C,
+no B. Para Manu, en cambio, el dueño es la familia. **Cuál de los dos es el caso
+principal decide el modelo**, y conviene contestarlo con un caso real enfrente.
+
+**El informe compartido miente si no se sabe el contexto.** Dos adultos sobre un
+mismo chico comparten el informe, y ese informe mezcla lo que el chico hizo en el
+consultorio con lo que hizo en casa. El técnico-funcional ya marca que sesión
+controlada y sesión de casa **no se promedian**. Compartir un chico no es sólo un
+tema de permisos: obliga a agregar el contexto al `Evento`
+(`controlled: boolean`, o de dónde vino la sesión) **en el mismo movimiento**, o
+el informe compartido va a dar números que no significan nada.
+
+---
+
 ## 13. Fuera de alcance
 
 - Borrar o archivar un chico desde la app.
@@ -494,4 +564,4 @@ En `lib/datos.run-tests.ts`:
   permite; es la continuación natural).
 - Bucket de fotos privado con URLs firmadas.
 - PIN, magic link, Supabase Auth, RLS.
-- Compartir un chico entre dos cuentas.
+- Compartir un chico entre dos cuentas (analizado en §14).
