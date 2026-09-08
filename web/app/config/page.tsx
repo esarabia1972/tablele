@@ -389,7 +389,7 @@ export default function ConfigPage() {
                   <input
                     type="text"
                     value={p.palabra}
-                    onChange={(e) => handleWordChange(p.letra, e.target.value.toLowerCase())}
+                    onChange={(e) => handleWordChange(p.letra, e.target.value)}
                     className="flex-1 min-w-0 p-1.5 rounded-lg border-2 border-brand-blue/10 outline-none focus:border-brand-blue text-[0.95rem]"
                     placeholder="palabra"
                   />
