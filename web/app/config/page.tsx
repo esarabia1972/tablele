@@ -326,7 +326,7 @@ export default function ConfigPage() {
           // Vista del adulto a cargo: un resumen compacto. Los mismos datos con
           // el espaciado de un formulario dejaban una tarjeta enorme y vacía.
           <div className="bg-white/80 rounded-[26px] px-6 py-5 shadow-[0_6px_0_rgba(0,0,0,0.12)] w-full mb-6">
-            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-2">
               {[
                 ["Nombre", config.nombre || "—"],
                 ["Método", config.metodo],
@@ -338,11 +338,11 @@ export default function ConfigPage() {
                     : "Intermedio (palabra completa)",
                 ],
               ].map(([k, v]) => (
-                <div key={k} className="flex items-baseline justify-between gap-4 border-b border-brand-blue/10 pb-2">
+                <div key={k} className="flex items-baseline gap-2">
                   <dt className="text-xs text-gray-500 font-bold uppercase tracking-wide shrink-0">
-                    {k}
+                    {k}:
                   </dt>
-                  <dd className="text-brand-dark font-bold text-right">{v}</dd>
+                  <dd className="text-brand-dark font-bold">{v}</dd>
                 </div>
               ))}
             </dl>
