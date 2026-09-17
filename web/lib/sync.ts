@@ -15,7 +15,7 @@
 //    estándar Fetch, o el navegador lo rechaza en silencio. El informe entero
 //    (hasta 2000 eventos) viaja en un POST normal, nunca con keepalive.
 
-import { BASES, K_SESSION, claveDe } from "@/lib/claves";
+import { BASES, K_CUENTA, K_SESSION, claveDe } from "@/lib/claves";
 import { mergeEventos, mergeUso } from "@/lib/eventos";
 
 /**
@@ -52,6 +52,20 @@ const DEBOUNCE_MS: Record<Parte, number> = {
 let pendiente: Pendiente | null = null;
 let pushTimer: ReturnType<typeof setTimeout> | null = null;
 let flushInstalled = false;
+
+/**
+ * Correo del adulto validado en este dispositivo. Va en toda llamada a
+ * /api/datos: el servidor lo necesita para saber si es el titular o un adulto
+ * a cargo — el par (cuenta, chico) es idéntico para los dos.
+ */
+function getEmail(): string | null {
+  try {
+    const c = JSON.parse(localStorage.getItem(K_CUENTA) || "null");
+    return typeof c?.email === "string" ? c.email : null;
+  } catch {
+    return null;
+  }
+}
 
 function getSesion(): Sesion | null {
   try {
@@ -108,7 +122,9 @@ function limpiarSucio(accountId: string, username: string) {
 
 function collectPayload(p: Pendiente, opts: { sinStats?: boolean } = {}): Record<string, unknown> {
   const { accountId, username } = p;
+  const email = getEmail();
   const payload: Record<string, unknown> = { accountId, username };
+  if (email) payload.email = email;
 
   // La config tampoco se sube desde un dispositivo que no bajó al chico:
   // si el pull falló, subirla pisaría en el servidor las palabras buenas con
@@ -170,8 +186,8 @@ async function pushNow(p: Pendiente | null): Promise<void> {
   }
 
   const payload = collectPayload(p);
-  // Sólo el par identificador: no hay nada real que subir.
-  if (Object.keys(payload).length <= 2) return;
+  // Sólo lo identificatorio (cuenta, chico, correo): nada real que subir.
+  if (Object.keys(payload).length <= 3) return;
 
   try {
     await postDatos(payload);
@@ -283,8 +299,12 @@ export async function syncFromServer(accountId: string, username: string): Promi
   } | null = null;
 
   try {
+    const email = getEmail();
+    if (!email) return; // sin cuenta validada no hay nada que bajar
     const res = await fetch(
-      `/api/datos?accountId=${encodeURIComponent(accountId)}&username=${encodeURIComponent(username)}`,
+      `/api/datos?accountId=${encodeURIComponent(accountId)}` +
+        `&username=${encodeURIComponent(username)}` +
+        `&email=${encodeURIComponent(email)}`,
       { cache: "no-store" }
     );
     json = await res.json();
@@ -363,6 +383,7 @@ export async function borrarEnServidor(accountId: string, username: string): Pro
     await postDatos({
       accountId,
       username,
+      email: getEmail() ?? "",
       stats: { eventos: [], uso: {} },
       stars: 0,
       forzarBorrado: true,
@@ -397,7 +418,7 @@ function flushBeacon() {
   let parcial = false;
   if (blob.size > LIMITE_KEEPALIVE) {
     const reducido = collectPayload(p, { sinStats: true });
-    if (Object.keys(reducido).length <= 2) {
+    if (Object.keys(reducido).length <= 3) {
       marcarSucio(p.accountId, p.username);
       return;
     }

@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import {
   getCuenta,
   setCuenta,
-  setChicosDeCuenta,
   getSessionData,
   setSessionData,
+  puedeCrearChicos,
+  type ChicoDeCuenta,
   type Cuenta,
 } from "@/lib/storage";
 import { normalizarEmail, normalizarUsername } from "@/lib/claves";
@@ -39,8 +40,14 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (data.ok) {
-        setChicosDeCuenta(data.chicos);
-        setCuentaState({ ...c, chicos: data.chicos });
+        const fresca: Cuenta = {
+          email: data.email,
+          nombre: data.titular?.nombre,
+          titularId: data.titular?.id,
+          chicos: data.chicos,
+        };
+        setCuenta(fresca);
+        setCuentaState(fresca);
       }
     } catch {
       // Sin conexión: se sigue con los chicos cacheados.
@@ -81,14 +88,16 @@ export default function LoginPage() {
         return;
       }
       const c: Cuenta = {
-        accountId: data.account.id,
-        email: data.account.email,
-        nombre: data.account.nombre,
+        email: data.email,
+        nombre: data.titular?.nombre,
+        titularId: data.titular?.id,
         chicos: data.chicos,
       };
       setCuenta(c);
       setCuentaState(c);
-      setPaso(data.chicos.length === 0 ? "nuevo" : "chicos");
+      // Sin chicos y con cuenta propia, directo al alta. Un adulto a cargo sin
+      // chicos no puede crear ninguno, así que no tiene sentido llevarlo ahí.
+      setPaso(c.chicos.length === 0 && puedeCrearChicos(c) ? "nuevo" : "chicos");
     } catch {
       setError("Error de conexión");
     } finally {
@@ -96,7 +105,7 @@ export default function LoginPage() {
     }
   };
 
-  const entrar = async (username: string, crear: boolean) => {
+  const entrar = async (chico: ChicoDeCuenta, crear: boolean) => {
     if (!cuenta) return;
     setError("");
     setLoading(true);
@@ -104,15 +113,24 @@ export default function LoginPage() {
       const res = await fetch("/api/acceso", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accountId: cuenta.accountId, username, crear }),
+        body: JSON.stringify({
+          accountId: chico.accountId,
+          username: chico.username,
+          email: cuenta.email,
+          crear,
+        }),
       });
       const data = await res.json();
       if (!data.ok) {
         setError(data.message || "No se pudo entrar");
         return;
       }
-      setSessionData({ accountId: cuenta.accountId, username: data.username });
-      await syncFromServer(cuenta.accountId, data.username);
+      setSessionData({
+        accountId: chico.accountId,
+        username: data.username,
+        rol: data.rol === "tutor" ? "tutor" : "titular",
+      });
+      await syncFromServer(chico.accountId, data.username);
       router.push("/jugar");
     } catch {
       setError("Error de conexión");
@@ -123,12 +141,13 @@ export default function LoginPage() {
 
   const crearChico = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!cuenta?.titularId) return;
     const username = normalizarUsername(nombreNuevo);
     if (username.length < 3) {
       setError("Poné al menos 3 letras.");
       return;
     }
-    void entrar(username, true);
+    void entrar({ accountId: cuenta.titularId, username, rol: "titular" }, true);
   };
 
   const inputClass =
@@ -178,30 +197,39 @@ export default function LoginPage() {
           <p className="text-brand-blue text-[1.15rem] text-center mb-5">¿Quién va a jugar?</p>
           <div className={cardClass}>
             <div className="flex flex-wrap gap-3 justify-center">
-              {(cuenta.chicos ?? []).map((u) => (
+                {cuenta.chicos.length === 0 && !puedeCrearChicos(cuenta) && (
+                <p className="text-brand-blue text-center opacity-80">
+                  Todavía no tenés chicos a cargo. Pedile a quien te dio el acceso
+                  que te asigne uno.
+                </p>
+              )}
+              {cuenta.chicos.map((c) => (
                 <button
-                  key={u}
+                  key={`${c.accountId}/${c.username}`}
                   type="button"
                   disabled={loading}
-                  onClick={() => void entrar(u, false)}
+                  onClick={() => void entrar(c, false)}
                   className="bg-brand-blue text-white font-bold rounded-full py-3 px-7 text-[1.2rem] shadow-[0_4px_0_rgba(0,0,0,0.18)] active:translate-y-1 active:shadow-none transition-transform disabled:opacity-50"
                 >
-                  {u}
+                  {c.username}
                 </button>
               ))}
-              <button
-                type="button"
-                disabled={loading}
-                aria-label="Agregar un chico"
-                onClick={() => {
-                  setNombreNuevo("");
-                  setError("");
-                  setPaso("nuevo");
-                }}
-                className="bg-white border-2 border-brand-blue/30 text-brand-blue font-bold rounded-full w-[52px] h-[52px] text-[1.6rem] leading-none active:translate-y-1 transition-transform disabled:opacity-50"
-              >
-                +
-              </button>
+              {/* Dar de alta un chico es sólo del titular. */}
+              {puedeCrearChicos(cuenta) && (
+                <button
+                  type="button"
+                  disabled={loading}
+                  aria-label="Agregar un chico"
+                  onClick={() => {
+                    setNombreNuevo("");
+                    setError("");
+                    setPaso("nuevo");
+                  }}
+                  className="bg-white border-2 border-brand-blue/30 text-brand-blue font-bold rounded-full w-[52px] h-[52px] text-[1.6rem] leading-none active:translate-y-1 transition-transform disabled:opacity-50"
+                >
+                  +
+                </button>
+              )}
             </div>
             {error && <div className="text-brand-pink font-bold text-center">{error}</div>}
           </div>
@@ -211,7 +239,7 @@ export default function LoginPage() {
       {paso === "nuevo" && cuenta && (
         <>
           <p className="text-brand-blue text-[1.15rem] text-center mb-5">
-            {(cuenta.chicos ?? []).length === 0
+            {cuenta.chicos.length === 0
               ? "Todavía no hay nadie. Creá el primero."
               : "¿Cómo se llama?"}
           </p>
@@ -236,7 +264,7 @@ export default function LoginPage() {
             <button type="submit" disabled={loading} className={`mt-2 ${btnClass}`}>
               {loading ? "Creando..." : "Empezar"}
             </button>
-            {(cuenta.chicos ?? []).length > 0 && (
+            {cuenta.chicos.length > 0 && (
               <button
                 type="button"
                 disabled={loading}

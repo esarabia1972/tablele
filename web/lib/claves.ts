@@ -45,7 +45,22 @@ export function claveDe(base: string, accountId: string, username: string): stri
 export const GOAL = 5;
 
 export const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
-export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+/**
+ * Quién es el adulto frente a un chico.
+ * - titular: dueño de la cuenta. Puede todo.
+ * - tutor:   adulto a cargo. Juega y mira; nunca escribe `config`.
+ */
+export type Rol = "titular" | "tutor";
+
+/** Cuántos adultos a cargo admite un chico (columnas tutor1 y tutor2). */
+export const MAX_TUTORES = 2;
+/**
+ * Charset conservador a propósito. El correo se usa en el filtro `or=(...)` de
+ * PostgREST para buscar tutores, y comillas, comas y paréntesis son los
+ * metacaracteres de esa sintaxis. Un regex permisivo acá es una inyección.
+ */
+export const EMAIL_RE = /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i;
 /** uuid v4 de Postgres. Se valida SIEMPRE antes de mandarlo a PostgREST. */
 export const ACCOUNT_ID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

@@ -3,6 +3,8 @@
 // esto centraliza la URL, las cabeceras y el manejo de errores, que antes
 // estaban copiados en cada route.ts.
 
+import type { Rol } from "@/lib/claves";
+
 const SB_URL = (() => {
   // Tolera que hayan pegado el endpoint REST completo, con path o barra final.
   const raw = process.env.SUPABASE_URL?.trim();
@@ -59,3 +61,56 @@ export async function sbUpsert(path: string, filas: unknown[]): Promise<void> {
   });
   if (!res.ok) throw new SupabaseError(res.status, (await res.text()).slice(0, 300));
 }
+
+// --- Rol del adulto frente a un chico ---------------------------------------
+
+/**
+ * Quién es el adulto que hace el pedido.
+ *
+ * El titular y el tutor mandan EXACTAMENTE el mismo par (accountId, username)
+ * —el chico es el mismo— así que el rol no se puede deducir del par: se deriva
+ * del correo, contra la fila del chico. Es tan fuerte como el resto del modelo
+ * de acceso de la app (conocer el correo es ser esa persona) y, además, cierra
+ * un agujero anterior: sin esto, conocer un accountId y adivinar un nombre
+ * alcanzaba para leer o escribir el informe de cualquier chico de esa cuenta.
+ *
+ * Devuelve null si el correo no tiene nada que ver con ese chico: el que llama
+ * responde 403.
+ */
+export async function resolverRol(
+  email: string,
+  accountId: string,
+  username: string
+): Promise<{ rol: Rol; fila: FilaChico } | null> {
+  const filas = await sbGet<FilaChico[]>(
+    `/rest/v1/${TABLA_DATOS}?account_id=eq.${accountId}&username=eq.${encodeURIComponent(
+      username
+    )}&select=account_id,username,tutor1,tutor2`
+  );
+  const fila = filas?.[0];
+  if (!fila) return null;
+
+  const cuentas = await sbGet<{ email: string; activo: boolean }[]>(
+    `/rest/v1/${TABLA_CUENTAS}?id=eq.${accountId}&select=email,activo`
+  );
+  const cuenta = cuentas?.[0];
+  if (!cuenta || cuenta.activo === false) return null;
+
+  // El titular se evalúa primero: si además se puso a sí mismo como tutor de su
+  // propio chico, sigue siendo titular.
+  if (cuenta.email.toLowerCase() === email) return { rol: "titular", fila };
+
+  const tutores = [fila.tutor1, fila.tutor2]
+    .filter((t): t is string => typeof t === "string" && t.length > 0)
+    .map((t) => t.toLowerCase());
+  if (tutores.includes(email)) return { rol: "tutor", fila };
+
+  return null;
+}
+
+export type FilaChico = {
+  account_id: string;
+  username: string;
+  tutor1?: string | null;
+  tutor2?: string | null;
+};

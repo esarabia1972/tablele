@@ -1,7 +1,15 @@
 # Tablele — Tutores (adulto a cargo)
 
-> Especificación para implementar. Base: `e0236e7` (v0.10.0, en producción).
-> Continúa `SPEC-cuentas.md` §14. Decisiones tomadas por Esteban, no reabrir.
+> Base: `e0236e7` (v0.10.0). Continúa `SPEC-cuentas.md` §14.
+> Estado: **implementado** en la rama `feat/tutores`.
+>
+> Diferencias con lo escrito acá, decididas al implementar:
+> - Los tutores se leen por `GET /api/tutores` (sólo titular) en vez de venir en
+>   el payload de `/api/datos`: a un tutor no le aporta nada saber quién más
+>   tiene acceso al chico, y es dato de terceros. La escritura sí va por
+>   `POST /api/datos` con el campo `tutores`, como estaba previsto.
+> - `§8 origen del evento`: **descartado por decisión de Esteban** — esa historia
+>   queda en el paciente y no hace falta separarla.
 
 ---
 

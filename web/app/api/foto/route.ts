@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
-import { ACCOUNT_ID_RE, USERNAME_RE } from "@/lib/claves";
+import { ACCOUNT_ID_RE, EMAIL_RE, USERNAME_RE, normalizarEmail } from "@/lib/claves";
 import {
   BUCKET_FOTOS,
   SupabaseError,
-  TABLA_DATOS,
   hayStorage,
-  sbGet,
+  resolverRol,
   sbHeaders,
   sbUrl,
 } from "@/lib/supabase";
@@ -16,12 +15,16 @@ import {
 
 export async function POST(request: Request) {
   try {
-    const { accountId, username, dataUrl } = await request.json();
+    const { accountId, username, email: emailBruto, dataUrl } = await request.json();
     const cuenta = String(accountId || "").trim();
     const chico = String(username || "").trim().toLowerCase();
+    const email = normalizarEmail(String(emailBruto || ""));
 
     if (!ACCOUNT_ID_RE.test(cuenta) || !USERNAME_RE.test(chico)) {
       return NextResponse.json({ ok: false }, { status: 403 });
+    }
+    if (!EMAIL_RE.test(email)) {
+      return NextResponse.json({ ok: false, motivo: "email-invalido" }, { status: 403 });
     }
     if (!hayStorage()) {
       return NextResponse.json({ ok: false, reason: "storage-no-configurado" });
@@ -36,15 +39,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: false, message: "Imagen demasiado grande" }, { status: 413 });
     }
 
-    // El chico tiene que pertenecer a esa cuenta: si no, cualquiera podría
-    // dejar archivos colgando del espacio de otro adulto.
-    const filas = await sbGet<{ username: string }[]>(
-      `/rest/v1/${TABLA_DATOS}?account_id=eq.${cuenta}&username=eq.${encodeURIComponent(
-        chico
-      )}&select=username`
-    );
-    if (!filas?.[0]) {
-      return NextResponse.json({ ok: false, motivo: "chico-ajeno" }, { status: 403 });
+    // Las fotos viven dentro de `config`, así que subirlas es escribir config:
+    // sólo el titular. Esto además verifica que el chico sea de esa cuenta, así
+    // que nadie deja archivos colgando del espacio de otro adulto.
+    const acceso = await resolverRol(email, cuenta, chico);
+    if (!acceso) {
+      return NextResponse.json({ ok: false, motivo: "sin-acceso" }, { status: 403 });
+    }
+    if (acceso.rol !== "titular") {
+      return NextResponse.json(
+        { ok: false, motivo: "solo-titular", message: "Sólo el titular puede cambiar las fotos." },
+        { status: 403 }
+      );
     }
 
     const path = `${cuenta}/${chico}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;

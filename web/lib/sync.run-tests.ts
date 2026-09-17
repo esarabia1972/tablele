@@ -96,14 +96,20 @@ async function reset() {
   posts = [];
   fallarPost = false;
   respuestaGet = { ok: true, data: null };
+  // Sin cuenta validada, sync no manda el correo y el servidor rechazaría todo.
+  validarCuenta();
 }
 
-function entrarComo(username: string, accountId = CTA_A) {
-  localStorageStub.setItem(K_SESSION, JSON.stringify({ accountId, username }));
+function entrarComo(username: string, accountId = CTA_A, rol: "titular" | "tutor" = "titular") {
+  localStorageStub.setItem(K_SESSION, JSON.stringify({ accountId, username, rol }));
 }
 
-function validarCuenta(accountId = CTA_A, email = "adulto@x.com") {
-  localStorageStub.setItem(K_CUENTA, JSON.stringify({ accountId, email }));
+function validarCuenta(
+  email = "adulto@x.com",
+  chicos: { accountId: string; username: string; rol: "titular" | "tutor" }[] = [],
+  titularId?: string
+) {
+  localStorageStub.setItem(K_CUENTA, JSON.stringify({ email, titularId, chicos }));
 }
 
 /** Simula que este navegador ya bajó la fila de ese chico. */
@@ -502,7 +508,14 @@ check(
 
 // Cambiar de cuenta se lleva a TODOS los chicos de esa cuenta, no sólo al activo.
 await reset();
-validarCuenta(CTA_A);
+validarCuenta(
+  "leti@x.com",
+  [
+    { accountId: CTA_A, username: "ana", rol: "titular" },
+    { accountId: CTA_A, username: "agus", rol: "titular" },
+  ],
+  CTA_A
+);
 entrarComo("ana", CTA_A);
 storage.saveConfig({ metodo: "SELEC", nivel: "Global", nombre: "Ana", palabras: [] });
 entrarComo("agus", CTA_A);
@@ -521,6 +534,106 @@ check(
 );
 check("y deja la sesión cerrada", storage.getSessionData() === null);
 check("y la cuenta sin validar", storage.getCuenta() === null);
+
+
+// =============================================================================
+// TUTORES — el adulto a cargo juega y mira, nunca escribe config
+// =============================================================================
+
+await reset();
+validarCuenta("mama@x.com", [{ accountId: CTA_A, username: "usain", rol: "tutor" }]);
+entrarComo("usain", CTA_A, "tutor");
+hidratar("usain", CTA_A);
+
+storage.saveConfig({ metodo: "SELEC", nivel: "Global", nombre: "cambiado", palabras: [] });
+check(
+  "un tutor no escribe config ni siquiera en su propio localStorage",
+  configDe("usain") === null
+);
+await sync.flushPush().catch(() => {});
+check(
+  "y por lo tanto nunca la sube",
+  !posts.some((p) => p.body.config !== undefined)
+);
+
+storage.setStars(3);
+storage.recordEvento({
+  t: Date.now(), juego: "wp", palabra: "casa", elegida: "casa",
+  ok: true, intento: 1, ms: 900, ayuda: false,
+});
+await sync.flushPush();
+check(
+  "pero sí sube estrellas y el informe: jugar es lo suyo",
+  posts.some((p) => p.body.stars === 3) && posts.some((p) => p.body.stats !== undefined)
+);
+
+check(
+  "todo push lleva el correo del adulto, que es de donde el server saca el rol",
+  posts.every((p) => p.body.email === "mama@x.com")
+);
+
+storage.clearMetricas();
+check(
+  "un tutor no puede borrar el informe",
+  eventosDe("usain").length === 1
+);
+check(
+  "y no le manda un borrado al servidor",
+  !posts.some((p) => p.body.forzarBorrado === true)
+);
+
+// El titular sí puede todo lo anterior.
+await reset();
+validarCuenta("leti@x.com", [{ accountId: CTA_A, username: "usain", rol: "titular" }], CTA_A);
+entrarComo("usain", CTA_A, "titular");
+hidratar("usain", CTA_A);
+storage.saveConfig({ metodo: "SELEC", nivel: "Global", nombre: "Usain", palabras: [] });
+await sync.flushPush();
+check("el titular sí escribe config", configDe("usain")?.nombre === "Usain");
+check("y la sube", posts.some((p) => p.body.config !== undefined));
+
+// Una sesión de antes de los tutores se lee como titular.
+await reset();
+localStorageStub.setItem(K_SESSION, JSON.stringify({ accountId: CTA_A, username: "manu" }));
+check(
+  "una sesión sin rol se asume titular (era lo que había antes)",
+  storage.getSessionData()?.rol === "titular"
+);
+
+// Un adulto con chicos de dos cuentas: salir se lleva los dos, y nada más.
+await reset();
+validarCuenta("mama@x.com", [
+  { accountId: CTA_A, username: "usain", rol: "tutor" },
+  { accountId: CTA_B, username: "noah", rol: "tutor" },
+]);
+entrarComo("usain", CTA_A, "tutor");
+hidratar("usain", CTA_A);
+storage.setStars(2);
+entrarComo("noah", CTA_B, "tutor");
+hidratar("noah", CTA_B);
+storage.setStars(4);
+check(
+  "dos chicos de cuentas distintas no comparten clave",
+  [...almacen.keys()].filter((k) => k.includes(CTA_A) && k.includes(CTA_B)).length === 0
+);
+storage.salirDeCuenta();
+check(
+  "salir borra los datos de los dos chicos a cargo",
+  [...almacen.keys()].filter((k) => k.includes(CTA_A) || k.includes(CTA_B)).length === 0
+);
+check("y cierra la sesión y la cuenta", storage.getSessionData() === null && storage.getCuenta() === null);
+
+// Una cuenta guardada por la versión anterior (con accountId y nombres sueltos)
+// no sirve: manda a revalidar.
+await reset();
+localStorageStub.setItem(
+  K_CUENTA,
+  JSON.stringify({ accountId: CTA_A, email: "x@y.com", chicos: ["manu"] })
+);
+check(
+  "una cuenta del formato anterior se descarta",
+  storage.getCuenta() === null
+);
 
 // -----------------------------------------------------------------------------
 

@@ -42,6 +42,7 @@ function colorPct(p: number): string {
 
 export default function InformePage() {
   const router = useRouter();
+  const [soloLectura, setSoloLectura] = useState(false);
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [uso, setUso] = useState<Record<string, number>>({});
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -56,6 +57,7 @@ export default function InformePage() {
       return;
     }
     (async () => {
+      setSoloLectura(s.rol === "tutor");
       await syncFromServer(s.accountId, s.username);
       setEventos(getEventos());
       setUso(getUso());
@@ -265,15 +267,19 @@ export default function InformePage() {
           )}
         </div>
 
+        {/* Borrar el informe es sólo del titular: para el adulto a cargo son
+            datos clínicos de otro, y un toque sin querer no se deshace. */}
+        {!soloLectura && (
         <button
           onClick={abrirConfirmacion}
           className="bg-brand-pink text-white border-none rounded-[22px] p-4 text-[1.05rem] font-bold cursor-pointer shadow-[0_5px_0_rgba(0,0,0,0.18)] active:translate-y-1 active:shadow-none w-full"
         >
           Borrar historial
         </button>
+        )}
       </div>
 
-      {confirmOpen && (
+      {confirmOpen && !soloLectura && (
         <div
           className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-6"
           onClick={() => setConfirmOpen(false)}

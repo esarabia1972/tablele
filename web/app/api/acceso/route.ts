@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ACCOUNT_ID_RE, USERNAME_RE } from "@/lib/claves";
+import { ACCOUNT_ID_RE, EMAIL_RE, USERNAME_RE, normalizarEmail } from "@/lib/claves";
 import {
   SupabaseError,
   TABLA_CUENTAS,
@@ -25,8 +25,12 @@ export async function POST(request: Request) {
 
   const accountId = String(body.accountId || "").trim();
   const username = String(body.username || "").trim().toLowerCase();
+  const email = normalizarEmail(String(body.email || ""));
   const crear = body.crear === true;
 
+  if (!EMAIL_RE.test(email)) {
+    return NextResponse.json({ ok: false, motivo: "email-invalido" }, { status: 403 });
+  }
   if (!ACCOUNT_ID_RE.test(accountId)) {
     return NextResponse.json({ ok: false, motivo: "cuenta-invalida" }, { status: 403 });
   }
@@ -40,27 +44,45 @@ export async function POST(request: Request) {
 
   // Sin storage configurado: entra igual, en modo local
   if (!hayStorage()) {
-    return NextResponse.json({ ok: true, accountId, username, local: true });
+    return NextResponse.json({ ok: true, accountId, username, rol: "titular", local: true });
   }
 
   try {
     // La cuenta tiene que existir y estar activa. Se revalida en cada acceso:
     // el accountId viene del cliente y una cuenta puede haberse dado de baja.
-    const cuentas = await sbGet<{ id: string; activo: boolean }[]>(
-      `/rest/v1/${TABLA_CUENTAS}?id=eq.${accountId}&select=id,activo`
+    const cuentas = await sbGet<{ id: string; email: string; activo: boolean }[]>(
+      `/rest/v1/${TABLA_CUENTAS}?id=eq.${accountId}&select=id,email,activo`
     );
-    if (!cuentas?.[0] || cuentas[0].activo === false) {
+    const cuenta = cuentas?.[0];
+    if (!cuenta || cuenta.activo === false) {
       return NextResponse.json({ ok: false, motivo: "cuenta-invalida" }, { status: 403 });
     }
+    const esTitular = cuenta.email.toLowerCase() === email;
 
-    const filas = await sbGet<{ username: string }[]>(
+    const filas = await sbGet<{ username: string; tutor1: string | null; tutor2: string | null }[]>(
       `/rest/v1/${TABLA_DATOS}?account_id=eq.${accountId}&username=eq.${encodeURIComponent(
         username
-      )}&select=username`
+      )}&select=username,tutor1,tutor2`
     );
     const existe = Array.isArray(filas) && filas.length > 0;
 
+    // Dar de alta un chico es potestad exclusiva del titular. Esconder el botón
+    // en la UI no alcanza: la API es la que manda.
+    if (crear && !esTitular) {
+      return NextResponse.json(
+        { ok: false, motivo: "solo-titular", message: "Sólo el titular puede crear chicos." },
+        { status: 403 }
+      );
+    }
+
     if (existe) {
+      const fila = filas[0];
+      const esTutor = [fila.tutor1, fila.tutor2]
+        .filter((t): t is string => !!t)
+        .some((t) => t.toLowerCase() === email);
+      if (!esTitular && !esTutor) {
+        return NextResponse.json({ ok: false, motivo: "sin-acceso" }, { status: 403 });
+      }
       if (crear) {
         // Alta de un nombre que ya está en esta cuenta: no se pisa nunca.
         return NextResponse.json({
@@ -70,7 +92,13 @@ export async function POST(request: Request) {
           message: `Ya tenés un ${username}. Agregale algo para distinguirlos.`,
         });
       }
-      return NextResponse.json({ ok: true, accountId, username, existe: true });
+      return NextResponse.json({
+        ok: true,
+        accountId,
+        username,
+        existe: true,
+        rol: esTitular ? "titular" : "tutor",
+      });
     }
 
     if (!crear) {
@@ -87,7 +115,14 @@ export async function POST(request: Request) {
       { account_id: accountId, username },
     ]);
 
-    return NextResponse.json({ ok: true, accountId, username, existe: false, creado: true });
+    return NextResponse.json({
+      ok: true,
+      accountId,
+      username,
+      existe: false,
+      creado: true,
+      rol: "titular",
+    });
   } catch (err) {
     if (err instanceof SupabaseError) {
       return NextResponse.json(

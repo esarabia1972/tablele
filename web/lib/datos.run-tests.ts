@@ -175,6 +175,18 @@ check(
 
 check("el correo se normaliza", normalizarEmail("  Leti@Hotmail.COM ") === "leti@hotmail.com");
 check("acepta un correo normal", EMAIL_RE.test("letialberti@hotmail.com"));
+check("acepta un + (yesi+tablele@gmail.com es legítimo)", EMAIL_RE.test("yesi+tablele@gmail.com"));
+
+// El correo va al filtro or=(...) de PostgREST para buscar tutores: comillas,
+// comas y paréntesis son los metacaracteres de esa sintaxis. Un EMAIL_RE
+// permisivo acá es una inyección.
+check('rechaza comillas', !EMAIL_RE.test('a"b@c.com'));
+check("rechaza comas", !EMAIL_RE.test("a,b@c.com"));
+check("rechaza paréntesis", !EMAIL_RE.test("a)b@c.com"));
+check(
+  "rechaza un intento de inyección en or=()",
+  !EMAIL_RE.test('x@y.com",tutor2.eq."z@w.com')
+);
 check("rechaza uno sin arroba", !EMAIL_RE.test("letialberti.hotmail.com"));
 check("rechaza uno sin dominio", !EMAIL_RE.test("leti@hotmail"));
 check("rechaza espacios", !EMAIL_RE.test("le ti@hotmail.com"));

@@ -16,7 +16,9 @@ import {
   esNivelSilabica,
 } from "@/lib/storage";
 import { syncFromServer, flushPush, cerrarSesionSync } from "@/lib/sync";
+import { leerTutores, guardarTutores } from "@/lib/tutores";
 import { palabrasDefault, SUGERENCIAS_EMOJI } from "@/data/palabras-default";
+import { EMAIL_RE, normalizarEmail } from "@/lib/claves";
 import { esElegibleSilabas } from "@/lib/silabas";
 
 // Reduce la foto a 512px máx. y la devuelve como JPEG base64
@@ -50,6 +52,10 @@ export default function ConfigPage() {
   const [usuario, setUsuario] = useState("");
   const [cuentaId, setCuentaId] = useState("");
   const [cuentaEmail, setCuentaEmail] = useState("");
+  // Un adulto a cargo ve esta pantalla en modo lectura: juega y mira, no toca
+  // ni las palabras ni el plan.
+  const [soloLectura, setSoloLectura] = useState(false);
+  const [tutores, setTutores] = useState<string[]>(["", ""]);
   // Candado adulto para cambiar de cuenta: la misma suma de dos dígitos que
   // protege el borrado del historial.
   const [cambioOpen, setCambioOpen] = useState(false);
@@ -69,9 +75,13 @@ export default function ConfigPage() {
     (async () => {
       setUsuario(s.username);
       setCuentaId(s.accountId);
+      setSoloLectura(s.rol === "tutor");
       setCuentaEmail(getCuenta()?.email ?? "");
       await syncFromServer(s.accountId, s.username);
       setConfig(getConfig());
+      if (s.rol !== "tutor") {
+        setTutores(await leerTutores(s.accountId, s.username, getCuenta()?.email ?? ""));
+      }
     })();
   }, [router]);
 
@@ -121,7 +131,12 @@ export default function ConfigPage() {
       const res = await fetch("/api/foto", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accountId: s.accountId, username: s.username, dataUrl }),
+        body: JSON.stringify({
+          accountId: s.accountId,
+          username: s.username,
+          email: cuentaEmail,
+          dataUrl,
+        }),
       });
       const data = await res.json();
       if (data.ok && data.url) {
@@ -168,7 +183,19 @@ export default function ConfigPage() {
     setGuardando(true);
     setAviso("");
     saveConfig(config); // local primero: nunca se pierde lo que el adulto escribió
+
+    // Un correo de tutor mal escrito lo rechaza el servidor, y eso NO es un
+    // problema de conexión: hay que decirle al adulto qué corregir, no que
+    // revise el wifi.
+    const malEscrito = tutores.find((t) => t.trim() !== "" && !EMAIL_RE.test(normalizarEmail(t)));
+    if (malEscrito) {
+      setAviso(`"${malEscrito}" no parece un correo válido. Revisalo y guardá de nuevo.`);
+      setGuardando(false);
+      return;
+    }
+
     try {
+      await guardarTutores(cuentaId, usuario, cuentaEmail, tutores);
       await flushPush(); // subir al servidor antes de salir
       router.push("/jugar");
     } catch {
@@ -263,6 +290,7 @@ export default function ConfigPage() {
             Ver Informe
           </button>
           
+          {!soloLectura && (
           <button
             onClick={handleSave}
             disabled={guardando}
@@ -270,6 +298,7 @@ export default function ConfigPage() {
           >
             {guardando ? "Guardando..." : "Guardar"}
           </button>
+          )}
         </div>
 
         {aviso && (
@@ -288,25 +317,83 @@ export default function ConfigPage() {
         <div className="bg-white/80 rounded-[26px] p-6 shadow-[0_6px_0_rgba(0,0,0,0.12)] w-full mb-6">
           <div className="mb-4">
             <label className="block text-brand-blue font-bold mb-1">Nombre del niño/a</label>
-            <input
-              type="text"
-              value={config.nombre ?? ""}
-              onChange={(e) => setConfig({ ...config, nombre: e.target.value })}
-              placeholder="escribí el nombre"
-              className="w-full p-3 rounded-xl border-2 border-brand-blue/20 outline-none focus:border-brand-blue bg-white text-brand-dark font-bold"
-            />
-            <p className="text-sm text-gray-500 mt-1">Se usa en los mensajes de aliento de los juegos.</p>
+            {soloLectura ? (
+              <p className="text-brand-dark font-bold text-lg">{config.nombre || "—"}</p>
+            ) : (
+              <>
+                <input
+                  type="text"
+                  value={config.nombre ?? ""}
+                  onChange={(e) => setConfig({ ...config, nombre: e.target.value })}
+                  placeholder="escribí el nombre"
+                  className="w-full p-3 rounded-xl border-2 border-brand-blue/20 outline-none focus:border-brand-blue bg-white text-brand-dark font-bold"
+                />
+                <p className="text-sm text-gray-500 mt-1">Se usa en los mensajes de aliento de los juegos.</p>
+              </>
+            )}
           </div>
           <div className="mb-4">
             <label className="block text-brand-blue font-bold mb-1">Método</label>
-            <select 
-              value={config.metodo} 
-              disabled
-              className="w-full p-3 rounded-xl border-2 border-brand-blue/20 bg-gray-50 outline-none text-brand-dark font-bold opacity-80"
-            >
-              <option value="SELEC">SELEC (Etapa Global)</option>
-            </select>
+            {soloLectura ? (
+              <p className="text-brand-dark font-bold">SELEC</p>
+            ) : (
+              <select
+                value={config.metodo}
+                disabled
+                className="w-full p-3 rounded-xl border-2 border-brand-blue/20 bg-gray-50 outline-none text-brand-dark font-bold opacity-80"
+              >
+                <option value="SELEC">SELEC (Etapa Global)</option>
+              </select>
+            )}
           </div>
+          {!soloLectura && (
+            <div className="mb-4 pt-4 border-t border-brand-blue/10">
+              <label className="block text-brand-blue font-bold mb-1">
+                Adultos a cargo (opcional)
+              </label>
+              <p className="text-sm text-gray-500 mb-2">
+                Pueden jugar y ver el informe desde su propio dispositivo. No pueden
+                cambiar las palabras ni el plan.
+              </p>
+              {tutores.map((t, i) => (
+                <input
+                  key={i}
+                  type="email"
+                  value={t}
+                  onChange={(e) => {
+                    const copia = [...tutores];
+                    copia[i] = e.target.value;
+                    setTutores(copia);
+                  }}
+                  placeholder={i === 0 ? "correo del adulto a cargo" : "otro adulto (opcional)"}
+                  className="w-full p-3 mb-2 rounded-xl border-2 border-brand-blue/20 outline-none focus:border-brand-blue bg-white lowercase"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                />
+              ))}
+            </div>
+          )}
+
+          {soloLectura ? (
+            <>
+              <div className="mb-4">
+                <label className="block text-brand-blue font-bold mb-1">Etapa</label>
+                <p className="text-brand-dark font-bold">
+                  {esNivelSilabica(config.nivel) ? "Silábica" : "Global"}
+                </p>
+              </div>
+              <div className="mb-2">
+                <label className="block text-brand-blue font-bold mb-1">Nivel</label>
+                <p className="text-brand-dark font-bold">
+                  {config.nivelPalabra === "inicial"
+                    ? "Inicial (solo la primera letra)"
+                    : "Intermedio (palabra completa)"}
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
           <div className="mb-4">
             <label className="block text-brand-blue font-bold mb-1">Etapa</label>
             <div className="flex gap-4">
@@ -368,6 +455,8 @@ export default function ConfigPage() {
               </label>
             </div>
           </div>
+            </>
+          )}
         </div>
 
         <div className="bg-white/80 rounded-[26px] p-4 shadow-[0_6px_0_rgba(0,0,0,0.12)] w-full overflow-hidden">
@@ -381,6 +470,30 @@ export default function ConfigPage() {
             </button>
           </div>
           
+          {soloLectura ? (
+            <div className="grid grid-cols-2 lg:grid-cols-4 md:grid-cols-3 gap-2">
+              {config.palabras.map((p) => (
+                <div
+                  key={p.letra}
+                  className={`flex items-center gap-2 bg-white p-2 rounded-xl border border-gray-100 ${
+                    p.usar ? "" : "opacity-40"
+                  }`}
+                  title={p.usar ? undefined : "no se usa en los juegos"}
+                >
+                  <span className="w-5 font-bold text-center text-brand-blue uppercase shrink-0">
+                    {p.letra}
+                  </span>
+                  {p.foto ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={p.foto} alt="" className="w-8 h-8 rounded-lg object-cover shrink-0" />
+                  ) : (
+                    <span className="w-8 text-center text-[1.1rem] shrink-0">{p.emoji}</span>
+                  )}
+                  <span className="text-brand-dark text-[0.95rem] truncate">{p.palabra}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
           <div>
             <div className="grid grid-cols-1 lg:grid-cols-3 md:grid-cols-2 gap-3">
               {config.palabras.map((p) => (
@@ -440,8 +553,9 @@ export default function ConfigPage() {
               ))}
             </div>
           </div>
+          )}
         </div>
-        
+
         <button
           onClick={() => void handleLogout()}
           disabled={saliendo}

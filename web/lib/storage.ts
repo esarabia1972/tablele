@@ -14,6 +14,7 @@ import {
   K_USUARIOS_VIEJO,
   claveDe,
   fechaLocal as fechaLocalPura,
+  type Rol,
 } from "@/lib/claves";
 
 export type ConfigTablero = {
@@ -45,20 +46,32 @@ export const fechaLocal = fechaLocalPura;
 
 // --- Cuenta del adulto ------------------------------------------------------
 
-/** La cuenta validada en este dispositivo. No se borra al salir de un chico. */
+export type ChicoDeCuenta = { accountId: string; username: string; rol: Rol };
+
+/**
+ * El adulto validado en este dispositivo. No se borra al salir de un chico.
+ *
+ * NO tiene un accountId propio: un adulto puede llegar a chicos de varias
+ * cuentas —los suyos y los que tiene a cargo de otra profesional— así que cada
+ * chico viaja con el suyo.
+ */
 export type Cuenta = {
-  accountId: string;
   email: string;
   nombre?: string;
-  /** Último listado de chicos que devolvió el servidor, para abrir sin esperar. */
-  chicos?: string[];
+  /** id de la cuenta propia. Ausente si entra sólo como adulto a cargo. */
+  titularId?: string;
+  chicos: ChicoDeCuenta[];
 };
 
 export function getCuenta(): Cuenta | null {
   if (typeof window === "undefined") return null;
   try {
     const parsed = JSON.parse(localStorage.getItem(K_CUENTA) || "null");
-    if (!parsed || !ACCOUNT_ID_RE.test(parsed.accountId || "")) return null;
+    // Las cuentas guardadas por la versión anterior traían `accountId` y una
+    // lista de nombres sueltos: no sirven, y mandan al login a revalidar.
+    if (!parsed || typeof parsed.email !== "string") return null;
+    if (!Array.isArray(parsed.chicos)) return null;
+    if (parsed.chicos.some((c: unknown) => typeof c !== "object" || c === null)) return null;
     return parsed;
   } catch {
     return null;
@@ -70,11 +83,9 @@ export function setCuenta(c: Cuenta) {
   localStorage.setItem(K_CUENTA, JSON.stringify(c));
 }
 
-/** Guarda el listado de chicos sin tocar el resto de la cuenta. */
-export function setChicosDeCuenta(chicos: string[]) {
-  const c = getCuenta();
-  if (!c) return;
-  setCuenta({ ...c, chicos });
+/** Puede dar de alta chicos sólo quien tiene cuenta propia. */
+export function puedeCrearChicos(c: Cuenta | null): boolean {
+  return !!c?.titularId;
 }
 
 /**
@@ -86,7 +97,11 @@ export function salirDeCuenta() {
   if (typeof window === "undefined") return;
   const c = getCuenta();
   if (c) {
-    const prefijos = Object.values(BASES).map((b) => `${b}_${c.accountId}_`);
+    // Un adulto puede tener chicos de varias cuentas, así que el barrido va por
+    // cada par (cuenta, chico) de su lista y no por un accountId único.
+    const prefijos = c.chicos.flatMap((ch) =>
+      Object.values(BASES).map((b) => claveDe(b, ch.accountId, ch.username))
+    );
     // Recorrido con key(i)/length —la API estándar de Storage— y no con
     // Object.keys(localStorage), que depende de que las claves sean
     // enumerables. Se juntan primero y se borran después, porque borrar
@@ -94,7 +109,7 @@ export function salirDeCuenta() {
     const aBorrar: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k && prefijos.some((pre) => k.startsWith(pre))) aBorrar.push(k);
+      if (k && prefijos.includes(k)) aBorrar.push(k);
     }
     aBorrar.forEach((k) => localStorage.removeItem(k));
   }
@@ -104,7 +119,7 @@ export function salirDeCuenta() {
 
 // --- Sesión (qué chico está jugando) ----------------------------------------
 
-export type Sesion = { accountId: string; username: string };
+export type Sesion = { accountId: string; username: string; rol: Rol };
 
 export function getSessionData(): Sesion | null {
   if (typeof window === "undefined") return null;
@@ -114,10 +129,21 @@ export function getSessionData(): Sesion | null {
     // (sólo username, y antes sólo email) caen acá y mandan al login.
     if (!parsed || typeof parsed.username !== "string") return null;
     if (!ACCOUNT_ID_RE.test(parsed.accountId || "")) return null;
-    return { accountId: parsed.accountId, username: parsed.username };
+    return {
+      accountId: parsed.accountId,
+      username: parsed.username,
+      // Las sesiones abiertas antes de los tutores no traen rol, y en ese
+      // momento todos eran titulares.
+      rol: parsed.rol === "tutor" ? "tutor" : "titular",
+    };
   } catch {
     return null;
   }
+}
+
+/** true si el adulto de esta sesión puede tocar la configuración del chico. */
+export function esTitular(): boolean {
+  return getSessionData()?.rol !== "tutor";
 }
 
 export function setSessionData(data: Sesion) {
@@ -232,6 +258,10 @@ export function getConfig(): ConfigTablero {
 export function saveConfig(config: ConfigTablero) {
   const key = userKey(BASES.config);
   if (!key) return; // sin sesión no se escribe nada
+  // Un adulto a cargo nunca escribe config. El servidor ya lo descarta; este
+  // guard evita que un bug de UI genere pushes que van a ser ignorados y deje
+  // la copia local desincronizada de la del titular.
+  if (!esTitular()) return;
   localStorage.setItem(key, JSON.stringify(config));
   schedulePush("config");
 }
@@ -355,6 +385,7 @@ export function esNivelSilabica(nivel?: string): boolean {
 export function clearMetricas() {
   const session = getSessionData();
   if (typeof window === "undefined" || !session) return;
+  if (session.rol === "tutor") return; // borrar el informe es sólo del titular
   const { accountId, username } = session;
 
   localStorage.setItem(claveDe(BASES.borradoAt, accountId, username), String(Date.now()));
