@@ -3,6 +3,9 @@
 // cualquier usuario (no sólo el de la sesión activa) sin importar storage.ts
 // —que a su vez importa sync.ts— y crear un ciclo de módulos.
 
+/** Versión visible de la app. Única fuente: no repetirla en el JSX. */
+export const VERSION = "1.0.0";
+
 export const K_SESSION = "tablele.session";
 /** La cuenta validada en ESTE dispositivo. Sobrevive al "Salir" del chico. */
 export const K_CUENTA = "tablele.cuenta";

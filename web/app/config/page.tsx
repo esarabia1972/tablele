@@ -18,7 +18,7 @@ import {
 import { syncFromServer, flushPush, cerrarSesionSync } from "@/lib/sync";
 import { leerTutores, guardarTutores } from "@/lib/tutores";
 import { palabrasDefault, SUGERENCIAS_EMOJI } from "@/data/palabras-default";
-import { EMAIL_RE, normalizarEmail } from "@/lib/claves";
+import { EMAIL_RE, VERSION, normalizarEmail } from "@/lib/claves";
 import { esElegibleSilabas } from "@/lib/silabas";
 
 // Reduce la foto a 512px máx. y la devuelve como JPEG base64
@@ -578,7 +578,7 @@ export default function ConfigPage() {
           Cambiar de cuenta{cuentaEmail ? ` (${cuentaEmail})` : ""}
         </button>
 
-        <p className="text-center text-gray-400 text-xs mt-4">Tablele v0.10.0</p>
+        <p className="text-center text-gray-400 text-xs mt-4">Tablele v{VERSION}</p>
       </div>
 
       {restaurarOpen && (
