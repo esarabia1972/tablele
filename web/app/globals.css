@@ -46,10 +46,26 @@ html, body {
   height: 100%;
 }
 
+/* Color de respaldo: pase lo que pase, el fondo nunca queda blanco. */
+html {
+  background-color: #b9e6ff;
+}
+
+/* El degradado va en una capa fija propia y no como background del body.
+   Un `background-attachment: fixed` sobre el body se propaga al canvas, y esa
+   combinación se cae en algunos navegadores —Safari sobre todo, y más todavía
+   con la app instalada como PWA—, dejando la pantalla en blanco hasta que algo
+   fuerza un repintado. Una capa fija real no depende de esa propagación. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(160deg, #7ec8ff 0%, #b9e6ff 45%, #fff3c4 100%);
+}
+
 body {
   font-family: var(--font-sans);
-  background: linear-gradient(160deg, #7ec8ff 0%, #b9e6ff 45%, #fff3c4 100%);
-  background-attachment: fixed;
   display: flex;
   flex-direction: column;
   align-items: center;
