@@ -544,6 +544,10 @@ de Manu ve el nombre de ese chico en "¿Quién va a jugar?", puede entrar,
 cambiarle las palabras y borrarle el historial (el candado adulto es una suma de
 dos dígitos). Eso es confidencialidad de pacientes, no una molestia de UX.
 
+> **Resuelto.** Se implementa con dos columnas de tutor y permisos de sólo
+> lectura para el adulto a cargo: ver `SPEC-tutores.md`. Lo de abajo queda como
+> el análisis que llevó a esa decisión.
+
 ### 14.3. Recomendación
 
 **B, y no ahora.** A es una tapa, no un modelo: el trabajo de sostenerla (las
