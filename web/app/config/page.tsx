@@ -56,6 +56,9 @@ export default function ConfigPage() {
   // ni las palabras ni el plan.
   const [soloLectura, setSoloLectura] = useState(false);
   const [tutores, setTutores] = useState<string[]>(["", ""]);
+  // Restaurar reemplaza el vocabulario entero del chico, que es lo más valioso
+  // que hay en esta pantalla. Va con confirmación.
+  const [restaurarOpen, setRestaurarOpen] = useState(false);
   // Candado adulto para cambiar de cuenta: la misma suma de dos dígitos que
   // protege el borrado del historial.
   const [cambioOpen, setCambioOpen] = useState(false);
@@ -211,6 +214,7 @@ export default function ConfigPage() {
 
   const handleRestore = () => {
     setConfig({ ...config!, palabras: palabrasDefault() });
+    setRestaurarOpen(false);
   };
 
   const handleLogout = async () => {
@@ -282,7 +286,11 @@ export default function ConfigPage() {
       <TopBar backTo="/jugar" />
       <div className="flex-1 flex flex-col items-center w-full max-w-[1100px] px-4 pb-12 mt-[2vh]">
         
-        <div className="flex gap-4 w-full mb-8">
+        {/* Sin "Guardar" —el caso del adulto a cargo— "Ver Informe" solo no
+            debe estirarse a todo el ancho: queda un botón enorme y vacío. */}
+        <div
+          className={`flex gap-4 w-full mb-8 ${soloLectura ? "max-w-[420px] mx-auto" : ""}`}
+        >
           <button
             onClick={() => router.push("/config/informe")}
             className="flex-1 bg-brand-blue text-white border-none rounded-[22px] py-3 text-lg font-bold shadow-[0_5px_0_rgba(0,0,0,0.18)] transition-transform active:translate-y-1 active:shadow-none"
@@ -314,37 +322,53 @@ export default function ConfigPage() {
           Usuario: <b>{usuario}</b>
         </p>
 
+        {soloLectura ? (
+          // Vista del adulto a cargo: un resumen compacto. Los mismos datos con
+          // el espaciado de un formulario dejaban una tarjeta enorme y vacía.
+          <div className="bg-white/80 rounded-[26px] px-6 py-5 shadow-[0_6px_0_rgba(0,0,0,0.12)] w-full mb-6">
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3">
+              {[
+                ["Nombre", config.nombre || "—"],
+                ["Método", config.metodo],
+                ["Etapa", esNivelSilabica(config.nivel) ? "Silábica" : "Global"],
+                [
+                  "Nivel",
+                  config.nivelPalabra === "inicial"
+                    ? "Inicial (solo la primera letra)"
+                    : "Intermedio (palabra completa)",
+                ],
+              ].map(([k, v]) => (
+                <div key={k} className="flex items-baseline justify-between gap-4 border-b border-brand-blue/10 pb-2">
+                  <dt className="text-xs text-gray-500 font-bold uppercase tracking-wide shrink-0">
+                    {k}
+                  </dt>
+                  <dd className="text-brand-dark font-bold text-right">{v}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        ) : (
         <div className="bg-white/80 rounded-[26px] p-6 shadow-[0_6px_0_rgba(0,0,0,0.12)] w-full mb-6">
           <div className="mb-4">
             <label className="block text-brand-blue font-bold mb-1">Nombre del niño/a</label>
-            {soloLectura ? (
-              <p className="text-brand-dark font-bold text-lg">{config.nombre || "—"}</p>
-            ) : (
-              <>
-                <input
+            <input
                   type="text"
                   value={config.nombre ?? ""}
                   onChange={(e) => setConfig({ ...config, nombre: e.target.value })}
                   placeholder="escribí el nombre"
-                  className="w-full p-3 rounded-xl border-2 border-brand-blue/20 outline-none focus:border-brand-blue bg-white text-brand-dark font-bold"
-                />
-                <p className="text-sm text-gray-500 mt-1">Se usa en los mensajes de aliento de los juegos.</p>
-              </>
-            )}
+              className="w-full p-3 rounded-xl border-2 border-brand-blue/20 outline-none focus:border-brand-blue bg-white text-brand-dark font-bold"
+            />
+            <p className="text-sm text-gray-500 mt-1">Se usa en los mensajes de aliento de los juegos.</p>
           </div>
           <div className="mb-4">
             <label className="block text-brand-blue font-bold mb-1">Método</label>
-            {soloLectura ? (
-              <p className="text-brand-dark font-bold">SELEC</p>
-            ) : (
-              <select
+            <select
                 value={config.metodo}
                 disabled
                 className="w-full p-3 rounded-xl border-2 border-brand-blue/20 bg-gray-50 outline-none text-brand-dark font-bold opacity-80"
               >
-                <option value="SELEC">SELEC (Etapa Global)</option>
-              </select>
-            )}
+              <option value="SELEC">SELEC (Etapa Global)</option>
+            </select>
           </div>
           {!soloLectura && (
             <div className="mb-4 pt-4 border-t border-brand-blue/10">
@@ -375,25 +399,6 @@ export default function ConfigPage() {
             </div>
           )}
 
-          {soloLectura ? (
-            <>
-              <div className="mb-4">
-                <label className="block text-brand-blue font-bold mb-1">Etapa</label>
-                <p className="text-brand-dark font-bold">
-                  {esNivelSilabica(config.nivel) ? "Silábica" : "Global"}
-                </p>
-              </div>
-              <div className="mb-2">
-                <label className="block text-brand-blue font-bold mb-1">Nivel</label>
-                <p className="text-brand-dark font-bold">
-                  {config.nivelPalabra === "inicial"
-                    ? "Inicial (solo la primera letra)"
-                    : "Intermedio (palabra completa)"}
-                </p>
-              </div>
-            </>
-          ) : (
-            <>
           <div className="mb-4">
             <label className="block text-brand-blue font-bold mb-1">Etapa</label>
             <div className="flex gap-4">
@@ -455,20 +460,22 @@ export default function ConfigPage() {
               </label>
             </div>
           </div>
-            </>
-          )}
         </div>
+
+        )}
 
         <div className="bg-white/80 rounded-[26px] p-4 shadow-[0_6px_0_rgba(0,0,0,0.12)] w-full overflow-hidden">
           <h2 className="text-brand-blue text-xl font-bold mb-1 text-center">Palabras (una por letra)</h2>
-          <div className="flex justify-center mb-4">
-            <button
-              onClick={handleRestore}
-              className="text-brand-blue text-sm font-bold underline underline-offset-2 opacity-80 hover:opacity-100 py-1 px-2"
-            >
-              Restaurar las palabras por defecto
-            </button>
-          </div>
+          {!soloLectura && (
+            <div className="flex justify-center mb-4">
+              <button
+                onClick={() => setRestaurarOpen(true)}
+                className="text-brand-blue text-sm font-bold underline underline-offset-2 opacity-80 hover:opacity-100 py-1 px-2"
+              >
+                Restaurar las palabras por defecto
+              </button>
+            </div>
+          )}
           
           {soloLectura ? (
             <div className="grid grid-cols-2 lg:grid-cols-4 md:grid-cols-3 gap-2">
@@ -573,6 +580,45 @@ export default function ConfigPage() {
 
         <p className="text-center text-gray-400 text-xs mt-4">Tablele v0.10.0</p>
       </div>
+
+      {restaurarOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-6"
+          onClick={() => setRestaurarOpen(false)}
+        >
+          <div
+            className="bg-white rounded-[26px] p-6 w-full max-w-[360px] shadow-xl flex flex-col gap-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-brand-dark font-bold text-lg text-center">
+              ¿Restaurar las palabras?
+            </h3>
+            <p className="text-brand-blue text-center text-[0.95rem]">
+              Las 27 palabras vuelven a las de fábrica. Se pierden las que
+              escribiste para <b>{config.nombre || usuario}</b> y las fotos que
+              subiste.
+              <br />
+              <span className="text-gray-500 text-sm">
+                Recién se aplica cuando toques Guardar.
+              </span>
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setRestaurarOpen(false)}
+                className="flex-1 bg-gray-200 text-gray-600 rounded-[18px] p-3 font-bold active:translate-y-1"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleRestore}
+                className="flex-1 bg-brand-pink text-white rounded-[18px] p-3 font-bold shadow-[0_4px_0_rgba(0,0,0,0.18)] active:translate-y-1 active:shadow-none"
+              >
+                Restaurar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {cambioOpen && (
         <div
