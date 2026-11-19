@@ -8,6 +8,21 @@ import type { Ficha, Objetivo, TipoFicha } from "@/lib/fichas";
 
 const K_ADMIN = "fichas.admin";
 const K_VINCULO = "fichas.vinculo";
+/**
+ * Qué pantalla se ve cuando el dispositivo tiene las dos cosas: una invitación
+ * guardada y una administradora. Pasa cuando la mamá abre en su propio
+ * navegador el enlace que generó (para probarlo o porque se lo reenviaron).
+ */
+const K_MODO = "fichas.modo";
+
+export type Modo = "vinculo" | "admin";
+export function getModo(): Modo | null {
+  const m = localStorage.getItem(K_MODO);
+  return m === "admin" || m === "vinculo" ? m : null;
+}
+export function setModo(m: Modo) {
+  localStorage.setItem(K_MODO, m);
+}
 
 export type ChicoAdmin = { accountId: string; username: string; rol: "titular" | "tutor" };
 

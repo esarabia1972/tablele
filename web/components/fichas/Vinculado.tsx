@@ -10,7 +10,15 @@ import { card, errorTxt, titulo } from "./ui";
 type Yo = { vinculo: { id: string; nombre: string }; chico: { nombre: string }; mias: Ficha[] };
 
 /** La única pantalla de una persona invitada: dar fichas y ver lo que dio. */
-export default function Vinculado({ token, onRevocado }: { token: string; onRevocado: () => void }) {
+export default function Vinculado({
+  token,
+  onRevocado,
+  onSoyAdmin,
+}: {
+  token: string;
+  onRevocado: () => void;
+  onSoyAdmin: () => void;
+}) {
   const [yo, setYo] = useState<Yo | null>(null);
   const [error, setError] = useState("");
   const [revocado, setRevocado] = useState("");
@@ -78,6 +86,9 @@ export default function Vinculado({ token, onRevocado }: { token: string; onRevo
         />
         <p className="text-sm opacity-60">Podés anular lo que diste en los últimos 15 minutos.</p>
       </div>
+      <button type="button" onClick={onSoyAdmin} className="text-sm text-brand-dark/60 underline self-center pb-4">
+        ¿Sos de la familia o la profesional? Entrá con tu correo
+      </button>
     </div>
   );
 }

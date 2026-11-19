@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { TOKEN_RE } from "@/lib/fichas";
-import { base, setToken } from "@/lib/fichas-cliente";
+import { base, setModo, setToken } from "@/lib/fichas-cliente";
 
 // Guarda el token en el dispositivo y lo saca de la URL (replace, no push)
 // para que no quede en el historial ni en una captura.
@@ -17,6 +17,7 @@ export default function Entrar({ token }: { token: string }) {
       return;
     }
     setToken(token);
+    setModo("vinculo");
     window.location.replace(`${base()}/`);
   }, [token]);
 

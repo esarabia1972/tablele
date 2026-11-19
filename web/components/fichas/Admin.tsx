@@ -509,7 +509,7 @@ function PestanaObjetivo({ s, t, recargar }: { s: SesionAdmin; t: Tablero; recar
 // Panel
 // ---------------------------------------------------------------------------
 
-export default function Admin() {
+export default function Admin({ onIrAVinculo }: { onIrAVinculo?: () => void } = {}) {
   const [s, setS] = useState<SesionAdmin | null>(null);
   const [listo, setListo] = useState(false);
   const [t, setT] = useState<Tablero | null>(null);
@@ -542,7 +542,18 @@ export default function Admin() {
   }, [recargar]);
 
   if (!listo) return null;
-  if (!s) return <Login onListo={setS} />;
+  if (!s) {
+    return (
+      <>
+        <Login onListo={setS} />
+        {onIrAVinculo && (
+          <button type="button" onClick={onIrAVinculo} className="text-sm text-brand-dark/60 underline pb-6">
+            Volver a dar fichas con la invitación
+          </button>
+        )}
+      </>
+    );
+  }
 
   const chico = s.chicos[s.actual];
   const cambiarChico = (i: number) => {
@@ -573,6 +584,11 @@ export default function Admin() {
         >
           Salir ({s.miNombre})
         </button>
+        {onIrAVinculo && (
+          <button type="button" className="text-sm text-brand-dark/60 underline" onClick={onIrAVinculo}>
+            Ver como invitado
+          </button>
+        )}
       </header>
 
       {s.chicos.length > 1 && (
