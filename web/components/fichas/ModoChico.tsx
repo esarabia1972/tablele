@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { EMOJI, fraseParaChico, type Ficha } from "@/lib/fichas";
 import { sndWin, speak } from "@/lib/audio";
 import type { Tablero } from "@/lib/fichas-cliente";
@@ -14,12 +14,25 @@ import { fechaCorta } from "./ui";
  * Las caritas tristes aparecen igual pero en tono neutro: están para
  * conversarlas, no para castigar. Se sale manteniendo apretado.
  */
+/** Cuánto hay que mantener apretado para salir: lo bastante para que el chico no salga sin querer. */
+const SALIR_MS = 1500;
+
 export default function ModoChico({ tablero, onSalir }: { tablero: Tablero; onSalir: () => void }) {
   const premios = tablero.premios.filter((p) => p.activo);
   const saldo = Math.max(0, tablero.saldo);
   const alcanza = premios.filter((p) => p.precio <= saldo);
   const festejado = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [apretando, setApretando] = useState(false);
+
+  const empezar = () => {
+    setApretando(true);
+    timer.current = setTimeout(onSalir, SALIR_MS);
+  };
+  const soltar = () => {
+    setApretando(false);
+    if (timer.current) clearTimeout(timer.current);
+  };
   const conductaDe = new Map(tablero.conductas.map((c) => [c.id, c]));
 
   useEffect(() => {
@@ -40,16 +53,24 @@ export default function ModoChico({ tablero, onSalir }: { tablero: Tablero; onSa
         <h1 className="text-brand-dark text-[2.2rem] font-bold drop-shadow-[2px_2px_0_#fff]">¡Hola {tablero.chico.nombre}! 🏅</h1>
         <button
           type="button"
-          onPointerDown={() => {
-            timer.current = setTimeout(onSalir, 1200);
-          }}
-          onPointerUp={() => timer.current && clearTimeout(timer.current)}
-          onPointerLeave={() => timer.current && clearTimeout(timer.current)}
+          onPointerDown={empezar}
+          onPointerUp={soltar}
+          onPointerLeave={soltar}
+          onPointerCancel={soltar}
           onContextMenu={(e) => e.preventDefault()}
-          className="text-sm text-brand-dark/50 px-3 py-2 rounded-full bg-white/50"
+          className="relative overflow-hidden text-sm text-brand-dark/70 px-4 py-2 rounded-full bg-white/60 border-2 border-brand-dark/20 touch-none"
           aria-label="Mantener apretado para salir"
         >
-          mantené para salir
+          {/* Se llena mientras se mantiene apretado; al soltar vuelve a cero al instante. */}
+          <span
+            aria-hidden
+            className="absolute inset-y-0 left-0 bg-brand-dark/25"
+            style={{
+              width: apretando ? "100%" : "0%",
+              transition: apretando ? `width ${SALIR_MS}ms linear` : "none",
+            }}
+          />
+          <span className="relative">{apretando ? "seguí apretando…" : "mantené para salir"}</span>
         </button>
       </div>
 

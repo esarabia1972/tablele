@@ -361,6 +361,9 @@ function EditorItem({
   const [imagen, setImagen] = useState<Imagen>({ picto: inicial?.picto ?? null, foto: inicial?.foto ?? null });
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
+  const [agregado, setAgregado] = useState("");
+  // Cambiar la key del buscador lo vuelve a montar vacío (búsqueda y resultados).
+  const [vuelta, setVuelta] = useState(0);
 
   const guardar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -369,10 +372,13 @@ function EditorItem({
     setGuardando(false);
     if (err) setError(err);
     else if (!inicial) {
+      setAgregado(`Agregado: ${texto.trim()}`);
+      setTimeout(() => setAgregado(""), 2500);
       setTexto("");
       setPrecio(10);
       setImagen({ picto: null, foto: null });
       setError("");
+      setVuelta((v) => v + 1);
     }
   };
 
@@ -383,7 +389,15 @@ function EditorItem({
         <input
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
-          placeholder={tipo === "conducta" ? "terminar la tarea" : "Ir a la plaza"}
+          placeholder={
+            tipo === "conducta"
+              ? inicial
+                ? "conducta"
+                : "escribí una conducta nueva…"
+              : inicial
+                ? "premio"
+                : "escribí un premio nuevo…"
+          }
           maxLength={60}
           className={input}
           required
@@ -404,6 +418,7 @@ function EditorItem({
         )}
       </div>
       <PictoPicker
+        key={vuelta}
         valor={imagen}
         onCambio={setImagen}
         sugerencia={texto.split(" ").slice(-1)[0] ?? ""}
@@ -413,6 +428,7 @@ function EditorItem({
         }}
       />
       {error && <div className={errorTxt}>{error}</div>}
+      {agregado && <div className="text-brand-green font-bold">✓ {agregado}</div>}
       <div className="flex gap-2">
         <button type="submit" className={btn} disabled={guardando}>
           {inicial ? "Guardar" : "Agregar"}
