@@ -7,10 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "npm run test:silabas && npm run test:datos && npm run test:usuarios",
+    "test": "npm run test:silabas && npm run test:datos && npm run test:usuarios && npm run test:fichas",
     "test:silabas": "node --experimental-strip-types lib/silabas.run-tests.ts",
     "test:datos": "node --experimental-strip-types lib/datos.run-tests.ts",
-    "test:usuarios": "node --experimental-strip-types --import ./lib/test/registrar.mjs lib/sync.run-tests.ts"
+    "test:usuarios": "node --experimental-strip-types --import ./lib/test/registrar.mjs lib/sync.run-tests.ts",
+    "test:fichas": "node --experimental-strip-types lib/fichas.run-tests.ts"
   },
   "dependencies": {
     "next": "16.2.10",

@@ -34,6 +34,7 @@
     "node_modules",
     "lib/silabas.run-tests.ts",
     "lib/datos.run-tests.ts",
-    "lib/sync.run-tests.ts"
+    "lib/sync.run-tests.ts",
+    "lib/fichas.run-tests.ts"
   ]
 }
