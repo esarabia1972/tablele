@@ -4,6 +4,13 @@
 //   node --experimental-strip-types lib/fichas.run-tests.ts
 
 import {
+  LLEVA_CONDUCTA,
+  calcularSaldo,
+  informePorConducta,
+  lunesDe,
+  ultimoCero,
+  validarPremio,
+  type Movimiento,
   TOKEN_RE,
   VALOR,
   diasRestantes,
@@ -48,7 +55,7 @@ check("las caritas no valen", VALOR.feliz === 0 && VALOR.triste === 0);
 // --- validación
 check("estrella sin comentario es válida", validarFicha("estrella", null) === null);
 check("feliz sin comentario es válida", validarFicha("feliz", null) === null);
-check("doble sin comentario falla", validarFicha("doble", null) !== null);
+check("v2: doble sin comentario es válida (la conducta dice el por qué)", validarFicha("doble", null) === null);
 check("triste sin comentario falla", validarFicha("triste", null) !== null);
 check("triste con comentario es válida", validarFicha("triste", "le pegó al hermano") === null);
 check("tipo inventado falla", validarFicha("diez", "x") !== null);
@@ -104,10 +111,63 @@ check("no re-anula", !puedeAnularVinculado({ ...mia, anulada_at: "x" }, "v1", ah
 
 // --- voz
 check(
+  "v2: frase con conducta",
+  fraseParaChico(f({ tipo: "doble", dada_por_nombre: "Seño Ana", conducta_texto: "terminar la tarea" })) ===
+    "Seño Ana: ¡Gracias por terminar la tarea! Te dio un Vale Doble."
+);
+check(
   "frase de estrella",
   fraseParaChico(f({ tipo: "doble", dada_por_nombre: "Seño Ana", comentario: "ayudó" })) === "Seño Ana te dio un Vale Doble: ayudó"
 );
 check("frase de carita triste", fraseParaChico(f({ tipo: "triste", comentario: "gritó" })).startsWith("Mamá anotó una carita triste"));
+
+// --- v2: conductas y saldo
+check("estrellas llevan conducta, caritas no", LLEVA_CONDUCTA.estrella && LLEVA_CONDUCTA.doble && !LLEVA_CONDUCTA.feliz && !LLEVA_CONDUCTA.triste);
+check("premio válido", validarPremio("cine", 40) === null);
+check("premio sin precio falla", validarPremio("cine", 0) !== null);
+check("premio sin nombre falla", validarPremio(null, 5) !== null);
+
+const m = (p: Partial<Movimiento>): Movimiento => ({
+  id: "m", tipo: "canje", premio_id: null, premio_nombre: null, costo: 0, saldo_antes: 0,
+  hecho_por_nombre: "Mamá", created_at: "2026-11-20T18:00:00Z", anulado_at: null, ...p,
+});
+const fs = [
+  f({ tipo: "estrella", created_at: "2026-11-20T10:00:00Z" }),
+  f({ tipo: "doble", created_at: "2026-11-20T11:00:00Z" }),
+  f({ tipo: "triste", created_at: "2026-11-20T12:00:00Z" }),
+  f({ tipo: "doble", created_at: "2026-11-20T20:00:00Z" }),
+  f({ tipo: "doble", created_at: "2026-11-20T21:00:00Z", anulada_at: "x" }),
+];
+check("saldo sin movimientos: 1+2+2", calcularSaldo(fs, []) === 5, String(calcularSaldo(fs, [])));
+check("saldo con canje de 2", calcularSaldo(fs, [m({ costo: 2 })]) === 3);
+check("canje anulado no descuenta", calcularSaldo(fs, [m({ costo: 2, anulado_at: "x" })]) === 5);
+const cero = m({ tipo: "cero", created_at: "2026-11-20T19:00:00Z" });
+check("después del cero sólo cuenta lo nuevo", calcularSaldo(fs, [cero]) === 2, String(calcularSaldo(fs, [cero])));
+check("canje anterior al cero no descuenta", calcularSaldo(fs, [cero, m({ costo: 3 })]) === 2);
+check("cero anulado vuelve todo", calcularSaldo(fs, [{ ...cero, anulado_at: "x" }]) === 5);
+check("último cero ignora los anulados", ultimoCero([cero, m({ tipo: "cero", created_at: "2026-11-21T00:00:00Z", anulado_at: "x" })]) === cero.created_at);
+check("saldo puede quedar negativo", calcularSaldo([], [m({ costo: 4 })]) === -4);
+
+check("lunes de un jueves", lunesDe("2026-11-19T15:00:00Z") === "2026-11-16");
+check("lunes de un domingo a la noche AR", lunesDe("2026-11-23T02:00:00Z") === "2026-11-16"); // dom 22 23:00 AR
+check("lunes de un lunes", lunesDe("2026-11-16T12:00:00Z") === "2026-11-16");
+const inf = informePorConducta(
+  [
+    f({ tipo: "estrella", conducta_id: "c1", conducta_texto: "la tarea", created_at: "2026-11-17T15:00:00Z" }),
+    f({ tipo: "doble", conducta_id: "c1", conducta_texto: "la tarea", created_at: "2026-11-19T15:00:00Z" }),
+    f({ tipo: "estrella", conducta_id: "c2", conducta_texto: "ordenar", created_at: "2026-11-10T15:00:00Z" }),
+    f({ tipo: "estrella", created_at: "2026-11-18T15:00:00Z" }),
+    f({ tipo: "feliz", created_at: "2026-11-18T15:00:00Z" }),
+    f({ tipo: "estrella", conducta_id: "c2", conducta_texto: "ordenar", created_at: "2026-01-01T15:00:00Z" }),
+  ],
+  "2026-11-20"
+);
+check("informe: 8 semanas terminando en la actual", inf.semanas.length === 8 && inf.semanas[7] === "2026-11-16");
+const c1 = inf.filas.find((x) => x.clave === "c1");
+check("informe: la tarea suma 3 esta semana", c1?.porSemana["2026-11-16"] === 3 && c1?.total === 3);
+check("informe: ordenar 1 (la de enero queda afuera)", inf.filas.find((x) => x.clave === "c2")?.total === 1);
+check("informe: fila sin conducta", inf.filas.find((x) => x.clave === "sin")?.texto === "sin conducta");
+check("informe: caritas no aparecen", inf.filas.reduce((a, x) => a + x.total, 0) === 5);
 
 // --- token
 check("token corto (16 bytes) válido", TOKEN_RE.test("jm3cwyzQ-6dDYNr4IloDzr"));

@@ -12,7 +12,7 @@ export const VALOR: Record<TipoFicha, number> = { estrella: 1, doble: 2, feliz: 
 /** Si fue algo grande o algo malo, que quede escrito qué fue. */
 export const COMENTARIO_OBLIGATORIO: Record<TipoFicha, boolean> = {
   estrella: false,
-  doble: true,
+  doble: false, // v2: la conducta ya dice el por qué
   feliz: false,
   triste: true,
 };
@@ -22,6 +22,14 @@ export const ETIQUETA: Record<TipoFicha, string> = {
   doble: "un Vale Doble",
   feliz: "una carita feliz",
   triste: "una carita triste",
+};
+
+/** Estrella y Vale Doble llevan conducta; las caritas son libres (v2). */
+export const LLEVA_CONDUCTA: Record<TipoFicha, boolean> = {
+  estrella: true,
+  doble: true,
+  feliz: false,
+  triste: false,
 };
 
 export const EMOJI: Record<TipoFicha, string> = {
@@ -35,6 +43,11 @@ export const MAX_COMENTARIO = 200;
 export const MAX_NOMBRE_VINCULO = 40;
 export const MAX_PREMIO = 120;
 export const MAX_META = 1000;
+export const MAX_TEXTO_CONDUCTA = 60;
+export const MAX_NOMBRE_PREMIO = 60;
+export const MAX_PRECIO = 1000;
+/** La técnica recomienda 3 a 5; 8 da margen sin volver ilegible la grilla. */
+export const MAX_CONDUCTAS_ACTIVAS = 8;
 /** Ventana en la que un vinculado puede anular lo que dio (para un toque equivocado). */
 export const VENTANA_ANULAR_MS = 15 * 60 * 1000;
 
@@ -55,6 +68,40 @@ export type Ficha = {
   dada_por_nombre: string;
   created_at: string;
   anulada_at: string | null;
+  /** v2. Null en caritas y en las fichas de v1. */
+  conducta_id?: string | null;
+  conducta_texto?: string | null;
+};
+
+export type Conducta = {
+  id: string;
+  texto: string;
+  picto: number | null;
+  orden: number;
+  activa: boolean;
+};
+
+export type Premio = {
+  id: string;
+  nombre: string;
+  precio: number;
+  picto: number | null;
+  orden: number;
+  activo: boolean;
+};
+
+export type TipoMovimiento = "canje" | "cero";
+
+export type Movimiento = {
+  id: string;
+  tipo: TipoMovimiento;
+  premio_id: string | null;
+  premio_nombre: string | null;
+  costo: number;
+  saldo_antes: number;
+  hecho_por_nombre: string;
+  created_at: string;
+  anulado_at: string | null;
 };
 
 export type Objetivo = {
@@ -171,6 +218,107 @@ export function validarObjetivo(
   return null;
 }
 
+export function validarConducta(texto: string | null): string | null {
+  if (!texto) return "Escribí la conducta.";
+  if (texto.length > MAX_TEXTO_CONDUCTA) return `La conducta puede tener hasta ${MAX_TEXTO_CONDUCTA} letras.`;
+  return null;
+}
+
+export function validarPremio(nombre: string | null, precio: unknown): string | null {
+  if (!nombre) return "Escribí el premio.";
+  if (nombre.length > MAX_NOMBRE_PREMIO) return `El premio puede tener hasta ${MAX_NOMBRE_PREMIO} letras.`;
+  const p = Number(precio);
+  if (!Number.isInteger(p) || p < 1 || p > MAX_PRECIO) return "El precio tiene que ser un número de estrellas.";
+  return null;
+}
+
+/** Id de pictograma de ARASAAC: entero positivo, o null. */
+export function limpiarPicto(raw: unknown): number | null {
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 && n < 10_000_000 ? n : null;
+}
+
+// --- Saldo (v2) ----------------------------------------------------------------
+
+/** Instante del último "poner en cero" vigente, o null si nunca se puso en cero. */
+export function ultimoCero(movs: Pick<Movimiento, "tipo" | "created_at" | "anulado_at">[]): string | null {
+  let ultimo: string | null = null;
+  for (const m of movs) {
+    if (m.tipo !== "cero" || m.anulado_at) continue;
+    // Date.parse y no comparación de texto: Postgres devuelve fracciones de
+    // segundo de largo variable y "+00:00" en vez de "Z".
+    if (!ultimo || Date.parse(m.created_at) > Date.parse(ultimo)) ultimo = m.created_at;
+  }
+  return ultimo;
+}
+
+/**
+ * Estrellas disponibles: lo ganado desde el último cero menos lo canjeado desde
+ * entonces. Puede dar negativo (se anuló una ficha después de un canje): la
+ * pantalla lo muestra como 0 y el próximo canje lo descuenta igual.
+ */
+export function calcularSaldo(
+  fichas: Pick<Ficha, "tipo" | "created_at" | "anulada_at">[],
+  movs: Pick<Movimiento, "tipo" | "costo" | "created_at" | "anulado_at">[]
+): number {
+  const cero = ultimoCero(movs);
+  const desde = cero ? Date.parse(cero) : null;
+  let saldo = 0;
+  for (const f of fichas) {
+    if (f.anulada_at || !esTipo(f.tipo)) continue;
+    if (desde !== null && Date.parse(f.created_at) <= desde) continue;
+    saldo += VALOR[f.tipo];
+  }
+  for (const m of movs) {
+    if (m.tipo !== "canje" || m.anulado_at) continue;
+    if (desde !== null && Date.parse(m.created_at) <= desde) continue;
+    saldo -= m.costo;
+  }
+  return saldo;
+}
+
+// --- Informe por conducta (v2) ----------------------------------------------
+
+/** Lunes (YYYY-MM-DD, hora Argentina) de la semana de un instante. */
+export function lunesDe(iso: string): string {
+  const dia = fechaArgentina(iso);
+  const dow = new Date(`${dia}T12:00:00Z`).getUTCDay(); // 0 = domingo
+  return sumarDias(dia, -((dow + 6) % 7));
+}
+
+export type FilaInforme = { clave: string; texto: string; porSemana: Record<string, number>; total: number };
+
+/**
+ * Estrellas por conducta y por semana. Las fichas sin conducta (v1) van en
+ * una fila propia. Devuelve las semanas (lunes) de la más vieja a la más nueva.
+ */
+export function informePorConducta(
+  fichas: Pick<Ficha, "tipo" | "created_at" | "anulada_at" | "conducta_id" | "conducta_texto">[],
+  hoy: string,
+  semanas = 8
+): { semanas: string[]; filas: FilaInforme[] } {
+  const lunesHoy = lunesDe(inicioDelDiaAR(hoy));
+  const lista: string[] = [];
+  for (let i = semanas - 1; i >= 0; i--) lista.push(sumarDias(lunesHoy, -7 * i));
+  const filas = new Map<string, FilaInforme>();
+  for (const f of fichas) {
+    if (f.anulada_at || !esTipo(f.tipo) || VALOR[f.tipo] === 0) continue;
+    const sem = lunesDe(f.created_at);
+    if (sem < lista[0]) continue;
+    const clave = f.conducta_id ?? "sin";
+    const fila = filas.get(clave) ?? {
+      clave,
+      texto: f.conducta_id ? f.conducta_texto ?? "(conducta)" : "sin conducta",
+      porSemana: {},
+      total: 0,
+    };
+    fila.porSemana[sem] = (fila.porSemana[sem] ?? 0) + VALOR[f.tipo];
+    fila.total += VALOR[f.tipo];
+    filas.set(clave, fila);
+  }
+  return { semanas: lista, filas: Array.from(filas.values()).sort((a, b) => b.total - a.total) };
+}
+
 export function validarNombreVinculo(nombre: string | null): string | null {
   if (!nombre) return "Escribí el nombre de la persona.";
   if (nombre.length > MAX_NOMBRE_VINCULO) return `El nombre puede tener hasta ${MAX_NOMBRE_VINCULO} letras.`;
@@ -193,9 +341,19 @@ export function puedeAnularVinculado(
 // --- Texto para el chico ----------------------------------------------------
 
 /** Lo que se lee en voz alta en el modo chico. */
-export function fraseParaChico(f: Pick<Ficha, "tipo" | "dada_por_nombre" | "comentario">): string {
+export function fraseParaChico(
+  f: Pick<Ficha, "tipo" | "dada_por_nombre" | "comentario"> & { conducta_texto?: string | null }
+): string {
   const quien = f.dada_por_nombre;
   const por = f.comentario ? `: ${f.comentario}` : "";
   if (f.tipo === "triste") return `${quien} anotó una carita triste${por}`;
+  if (f.conducta_texto) {
+    return `${quien}: ¡Gracias por ${f.conducta_texto}! Te dio ${ETIQUETA[f.tipo]}.${f.comentario ? ` ${f.comentario}` : ""}`;
+  }
   return `${quien} te dio ${ETIQUETA[f.tipo]}${por}`;
+}
+
+/** URL del pictograma de ARASAAC (licencia CC BY-NC-SA, Gobierno de Aragón). */
+export function urlPicto(id: number, tam: 300 | 500 = 300): string {
+  return `https://static.arasaac.org/pictograms/${id}/${id}_${tam}.png`;
 }

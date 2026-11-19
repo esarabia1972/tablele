@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
-import { diasRestantes, sumarDias, sumarEstrellas, type Objetivo } from "@/lib/fichas";
+import { sumarDias, type Conducta, type Premio } from "@/lib/fichas";
 import {
-  COLS_OBJETIVO,
-  T_OBJETIVOS,
+  COLS_CONDUCTA,
+  COLS_PREMIO,
+  T_CONDUCTAS,
+  T_PREMIOS,
   autenticarAdmin,
   conManejo,
   error,
@@ -11,12 +13,14 @@ import {
   hoyAR,
   leerJson,
   nombreDelChico,
-  objetivoActivo,
+  saldoActual,
 } from "@/lib/fichas-server";
 import { sbGet } from "@/lib/supabase";
 
-// Todo lo que muestra el tablero de una administradora y el modo chico.
-// Sin objetivo activo, la lista muestra los últimos 30 días.
+// Todo lo que muestran el tablero, el informe y el modo chico: conductas,
+// premios, saldo, fichas y movimientos de las últimas 8 semanas.
+
+const SEMANAS_TABLERO = 8;
 
 export async function POST(request: Request) {
   return conManejo(async () => {
@@ -25,38 +29,29 @@ export async function POST(request: Request) {
     const admin = await autenticarAdmin(body);
     if (admin instanceof Response) return admin;
     const { accountId, username } = admin;
+    const chico = filtroChico(accountId, username);
 
     const hoy = hoyAR();
-    const [nombre, objetivo] = await Promise.all([
+    const inicio = sumarDias(hoy, -(SEMANAS_TABLERO * 7 + 6));
+    const [nombre, conductas, premios, fichas, saldo] = await Promise.all([
       nombreDelChico(accountId, username),
-      objetivoActivo(accountId, username),
+      sbGet<Conducta[]>(`/rest/v1/${T_CONDUCTAS}?${chico}&select=${COLS_CONDUCTA}&order=orden.asc,created_at.asc`),
+      sbGet<Premio[]>(`/rest/v1/${T_PREMIOS}?${chico}&select=${COLS_PREMIO}&order=precio.asc,created_at.asc`),
+      fichasEnRango(accountId, username, inicio, hoy),
+      saldoActual(accountId, username),
     ]);
 
-    const inicio = objetivo ? objetivo.inicio : sumarDias(hoy, -29);
-    const fin = objetivo ? objetivo.fin : hoy;
-    const [fichas, historial] = await Promise.all([
-      fichasEnRango(accountId, username, inicio, fin),
-      sbGet<Objetivo[]>(
-        `/rest/v1/${T_OBJETIVOS}?${filtroChico(accountId, username)}&cerrado_at=not.is.null` +
-          `&select=${COLS_OBJETIVO}&order=fin.desc&limit=10`
-      ),
-    ]);
-
+    const desde = Date.now() - (SEMANAS_TABLERO * 7 + 6) * 86_400_000;
     return NextResponse.json({
       ok: true,
       rol: admin.rol,
       hoy,
       chico: { nombre },
-      rango: { inicio, fin },
-      objetivo: objetivo
-        ? {
-            ...objetivo,
-            acumuladas: sumarEstrellas(fichas, objetivo),
-            diasRestantes: diasRestantes(objetivo.fin, hoy),
-          }
-        : null,
+      conductas,
+      premios,
+      saldo: saldo.saldo,
       fichas,
-      historial,
+      movimientos: saldo.movs.filter((m) => Date.parse(m.created_at) >= desde),
     });
   });
 }

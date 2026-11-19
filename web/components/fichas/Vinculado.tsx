@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { puedeAnularVinculado, type Ficha, type TipoFicha } from "@/lib/fichas";
+import { puedeAnularVinculado, type Conducta, type Ficha, type TipoFicha } from "@/lib/fichas";
 import { api, borrarToken } from "@/lib/fichas-cliente";
 import DarFicha from "./DarFicha";
 import ListaFichas from "./ListaFichas";
 import { card, errorTxt, titulo } from "./ui";
 
-type Yo = { vinculo: { id: string; nombre: string }; chico: { nombre: string }; mias: Ficha[] };
+type Yo = { vinculo: { id: string; nombre: string }; chico: { nombre: string }; conductas: Conducta[]; mias: Ficha[] };
 
 /** La única pantalla de una persona invitada: dar fichas y ver lo que dio. */
 export default function Vinculado({
@@ -55,9 +55,12 @@ export default function Vinculado({
   }
   if (!yo) return <p className="opacity-60 pt-10">{error || "Cargando…"}</p>;
 
-  const dar = async (tipo: TipoFicha, comentario: string) => {
-    const r = await api.vDar(token, tipo, comentario);
-    if (!r.ok) return r.message || "No se pudo guardar.";
+  const dar = async (tipo: TipoFicha, comentario: string, conductaId: string | null) => {
+    const r = await api.vDar(token, tipo, comentario, conductaId);
+    if (!r.ok) {
+      if (r.motivo === "conducta-inactiva") void cargar();
+      return r.message || "No se pudo guardar.";
+    }
     void cargar();
     return null;
   };
@@ -74,7 +77,12 @@ export default function Vinculado({
         Fichas para {yo.chico.nombre} 🏅
       </h1>
       <p className="text-brand-blue -mt-2">Hola, {yo.vinculo.nombre}.</p>
-      <DarFicha nombreChico={yo.chico.nombre} onDar={dar} />
+      <DarFicha
+        nombreChico={yo.chico.nombre}
+        conductas={yo.conductas}
+        sinConductas="Todavía no hay conductas cargadas. Avisale a la familia."
+        onDar={dar}
+      />
       <div className={card}>
         <div className={titulo}>Lo que diste</div>
         {error && <div className={errorTxt}>{error}</div>}

@@ -4,7 +4,7 @@
 // Claves con prefijo `fichas.` para no chocar con las de Tablele: en localhost
 // las dos apps comparten origen.
 
-import type { Ficha, Objetivo, TipoFicha } from "@/lib/fichas";
+import type { Conducta, Ficha, Movimiento, Premio, TipoFicha } from "@/lib/fichas";
 
 const K_ADMIN = "fichas.admin";
 const K_VINCULO = "fichas.vinculo";
@@ -119,9 +119,11 @@ export type Tablero = {
   hoy: string;
   chico: { nombre: string };
   rango: { inicio: string; fin: string };
-  objetivo: (Objetivo & { acumuladas: number; diasRestantes: number }) | null;
+  conductas: Conducta[];
+  premios: Premio[];
+  saldo: number;
   fichas: Ficha[];
-  historial: Objetivo[];
+  movimientos: Movimiento[];
 };
 
 export type VinculoListado = {
@@ -137,8 +139,8 @@ export const api = {
   cuenta: (email: string) =>
     post<{ email: string; chicos: ChicoAdmin[] }>("/api/cuenta", { email }),
   tablero: (s: SesionAdmin) => post<Tablero>("/api/fichas/tablero", auth(s)),
-  dar: (s: SesionAdmin, tipo: TipoFicha, comentario: string, id = nuevoId()) =>
-    post<{ id: string }>("/api/fichas/dar", { ...auth(s), id, tipo, comentario, nombre: s.miNombre }),
+  dar: (s: SesionAdmin, tipo: TipoFicha, comentario: string, conductaId: string | null, id = nuevoId()) =>
+    post<{ id: string }>("/api/fichas/dar", { ...auth(s), id, tipo, comentario, conductaId, nombre: s.miNombre }),
   anular: (s: SesionAdmin, fichaId: string) => post("/api/fichas/anular", { ...auth(s), fichaId }),
   vinculos: (s: SesionAdmin) =>
     post<{ vinculos: VinculoListado[] }>("/api/fichas/vinculos", { ...auth(s), accion: "listar" }),
@@ -146,9 +148,16 @@ export const api = {
     post<{ token: string }>("/api/fichas/vinculos", { ...auth(s), accion: "crear", nombre }),
   revocar: (s: SesionAdmin, vinculoId: string) =>
     post("/api/fichas/vinculos", { ...auth(s), accion: "revocar", vinculoId }),
-  crearObjetivo: (s: SesionAdmin, o: { meta: number; premio: string; inicio: string; fin: string }) =>
-    post("/api/fichas/objetivo", { ...auth(s), accion: "crear", ...o }),
-  cerrarObjetivo: (s: SesionAdmin) => post("/api/fichas/objetivo", { ...auth(s), accion: "cerrar" }),
+  conducta: (s: SesionAdmin, accion: "crear" | "editar" | "archivar" | "activar" | "ordenar", datos: Record<string, unknown>) =>
+    post("/api/fichas/conductas", { ...auth(s), accion, ...datos }),
+  premio: (s: SesionAdmin, accion: "crear" | "editar" | "archivar" | "activar", datos: Record<string, unknown>) =>
+    post("/api/fichas/premios", { ...auth(s), accion, ...datos }),
+  canjear: (s: SesionAdmin, premioId: string, id = nuevoId()) =>
+    post<{ saldo: number }>("/api/fichas/movimiento", { ...auth(s), accion: "canjear", id, premioId, nombre: s.miNombre }),
+  cero: (s: SesionAdmin, id = nuevoId()) =>
+    post("/api/fichas/movimiento", { ...auth(s), accion: "cero", id, nombre: s.miNombre }),
+  anularMovimiento: (s: SesionAdmin, movimientoId: string) =>
+    post("/api/fichas/movimiento", { ...auth(s), accion: "anular", movimientoId }),
 
   // Vinculado
   yo: async (token: string) => {
@@ -157,14 +166,31 @@ export const api = {
       return (await res.json()) as Respuesta<{
         vinculo: { id: string; nombre: string };
         chico: { nombre: string };
+        conductas: Conducta[];
         mias: Ficha[];
       }>;
     } catch {
       return { ok: false, motivo: "red", message: "Sin conexión. Probá de nuevo." } as Respuesta<never>;
     }
   },
-  vDar: (token: string, tipo: TipoFicha, comentario: string, id = nuevoId()) =>
-    post<{ id: string }>("/api/fichas/v/dar", { id, tipo, comentario }, { "X-Fichas-Token": token }),
+  vDar: (token: string, tipo: TipoFicha, comentario: string, conductaId: string | null, id = nuevoId()) =>
+    post<{ id: string }>("/api/fichas/v/dar", { id, tipo, comentario, conductaId }, { "X-Fichas-Token": token }),
   vAnular: (token: string, fichaId: string) =>
     post("/api/fichas/v/anular", { fichaId }, { "X-Fichas-Token": token }),
 };
+
+// --- ARASAAC -------------------------------------------------------------------
+
+/** Busca pictogramas en ARASAAC (los mismos que usa MiraVoz). Devuelve ids. */
+export async function buscarPictos(q: string): Promise<number[]> {
+  const t = q.trim();
+  if (!t) return [];
+  try {
+    const res = await fetch(`https://api.arasaac.org/v1/pictograms/es/search/${encodeURIComponent(t)}`);
+    if (!res.ok) return [];
+    const data = (await res.json()) as { _id: number }[];
+    return data.slice(0, 18).map((p) => p._id);
+  } catch {
+    return [];
+  }
+}

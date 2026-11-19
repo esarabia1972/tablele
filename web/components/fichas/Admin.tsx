@@ -1,7 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { sumarDias, type Ficha, type TipoFicha } from "@/lib/fichas";
+import {
+  MAX_CONDUCTAS_ACTIVAS,
+  informePorConducta,
+  type Conducta,
+  type Ficha,
+  type Movimiento,
+  type Premio,
+  type TipoFicha,
+} from "@/lib/fichas";
 import {
   api,
   enlaceInvitacion,
@@ -15,10 +23,12 @@ import {
 import DarFicha from "./DarFicha";
 import ListaFichas from "./ListaFichas";
 import ModoChico from "./ModoChico";
-import Visualizador from "./Visualizador";
+import Picto from "./Picto";
+import PictoPicker from "./PictoPicker";
+import Tienda from "./Tienda";
 import { btn, btnGris, card, errorTxt, fechaCorta, fechaDia, input, titulo } from "./ui";
 
-type Pestana = "tablero" | "personas" | "objetivo";
+type Pestana = "tablero" | "informe" | "ajustes" | "personas";
 
 // ---------------------------------------------------------------------------
 // Entrada: correo y "cómo te llama el chico"
@@ -107,93 +117,124 @@ function Login({ onListo }: { onListo: (s: SesionAdmin) => void }) {
 }
 
 // ---------------------------------------------------------------------------
-// Pestaña Tablero
+// Pestaña Tablero: saldo, tienda, dar fichas y lista
 // ---------------------------------------------------------------------------
+
+type Confirmar =
+  | { que: "ficha"; f: Ficha }
+  | { que: "mov"; m: Movimiento }
+  | { que: "canje"; p: Premio }
+  | { que: "cero" };
 
 function PestanaTablero({
   s,
   t,
   recargar,
-  irAObjetivo,
+  irAAjustes,
 }: {
   s: SesionAdmin;
   t: Tablero;
   recargar: () => void;
-  irAObjetivo: () => void;
+  irAAjustes: () => void;
 }) {
   const [persona, setPersona] = useState("");
-  const [clase, setClase] = useState<"todas" | "estrellas" | "caritas">("todas");
-  const [anulando, setAnulando] = useState<Ficha | null>(null);
+  const [clase, setClase] = useState<"todas" | "estrellas" | "caritas" | "canjes">("todas");
+  const [confirmar, setConfirmar] = useState<Confirmar | null>(null);
   const [error, setError] = useState("");
 
-  const personas = useMemo(
-    () => Array.from(new Set(t.fichas.map((f) => f.dada_por_nombre))).sort(),
-    [t.fichas]
-  );
+  const activas = t.conductas.filter((c) => c.activa);
+  const premios = t.premios.filter((p) => p.activo);
+  const personas = useMemo(() => Array.from(new Set(t.fichas.map((f) => f.dada_por_nombre))).sort(), [t.fichas]);
 
-  const filtradas = t.fichas.filter(
+  const fichas = t.fichas.filter(
     (f) =>
+      clase !== "canjes" &&
       (!persona || f.dada_por_nombre === persona) &&
       (clase === "todas" ||
         (clase === "estrellas" ? f.tipo === "estrella" || f.tipo === "doble" : f.tipo === "feliz" || f.tipo === "triste"))
   );
+  const movs = clase === "todas" || clase === "canjes" ? t.movimientos.filter((m) => !persona || m.hecho_por_nombre === persona) : [];
 
-  // Informe de caritas: por persona, sin las anuladas.
-  const caritas = useMemo(() => {
-    const m = new Map<string, { feliz: number; triste: number }>();
-    for (const f of t.fichas) {
-      if (f.anulada_at || (f.tipo !== "feliz" && f.tipo !== "triste")) continue;
-      const x = m.get(f.dada_por_nombre) ?? { feliz: 0, triste: 0 };
-      x[f.tipo]++;
-      m.set(f.dada_por_nombre, x);
+  const dar = async (tipo: TipoFicha, comentario: string, conductaId: string | null) => {
+    const r = await api.dar(s, tipo, comentario, conductaId);
+    if (!r.ok) {
+      if (r.motivo === "conducta-inactiva") recargar();
+      return r.message || "No se pudo guardar.";
     }
-    return Array.from(m.entries());
-  }, [t.fichas]);
-
-  const dar = async (tipo: TipoFicha, comentario: string) => {
-    const r = await api.dar(s, tipo, comentario);
-    if (!r.ok) return r.message || "No se pudo guardar.";
     recargar();
     return null;
   };
 
-  const confirmarAnular = async () => {
-    if (!anulando) return;
-    const r = await api.anular(s, anulando.id);
-    setAnulando(null);
-    if (!r.ok) setError(r.message || "No se pudo anular.");
-    else recargar();
+  const ejecutar = async () => {
+    if (!confirmar) return;
+    const c = confirmar;
+    setConfirmar(null);
+    const r =
+      c.que === "ficha"
+        ? await api.anular(s, c.f.id)
+        : c.que === "mov"
+          ? await api.anularMovimiento(s, c.m.id)
+          : c.que === "canje"
+            ? await api.canjear(s, c.p.id)
+            : await api.cero(s);
+    if (!r.ok) setError(r.message || "No se pudo hacer.");
+    else setError("");
+    recargar();
   };
+
+  const textoConfirmar = !confirmar
+    ? ""
+    : confirmar.que === "ficha"
+      ? `¿Anular la ficha de ${confirmar.f.dada_por_nombre} del ${fechaCorta(confirmar.f.created_at)}? Queda tachada y deja de contar.`
+      : confirmar.que === "mov"
+        ? confirmar.m.tipo === "canje"
+          ? `¿Deshacer el canje de "${confirmar.m.premio_nombre}"? Vuelven ${confirmar.m.costo} estrellas.`
+          : "¿Deshacer la puesta en cero? Vuelven las estrellas que tenía."
+        : confirmar.que === "canje"
+          ? `¿Canjear "${confirmar.p.nombre}" por ${confirmar.p.precio} estrellas? Le quedan ${Math.max(0, t.saldo) - confirmar.p.precio}.`
+          : `¿Poner en cero? Tiene ${Math.max(0, t.saldo)} estrellas y las pierde. Queda registrado y se puede deshacer.`;
 
   return (
     <div className="flex flex-col gap-5 w-full">
+      {confirmar && (
+        <div className="bg-[#ffe3ef] rounded-2xl p-4 flex flex-wrap items-center gap-3 sticky top-2 z-10 shadow-lg">
+          <span className="flex-1 min-w-[200px]">{textoConfirmar}</span>
+          <button type="button" className="bg-brand-pink text-white rounded-xl px-4 py-2 font-bold" onClick={() => void ejecutar()}>
+            Sí
+          </button>
+          <button type="button" className={btnGris} onClick={() => setConfirmar(null)}>
+            No
+          </button>
+        </div>
+      )}
+
       <div className={card}>
-        {t.objetivo ? (
-          <Visualizador
-            acumuladas={t.objetivo.acumuladas}
-            meta={t.objetivo.meta}
-            premio={t.objetivo.premio}
-            fin={t.objetivo.fin}
-            diasRestantes={t.objetivo.diasRestantes}
-          />
-        ) : (
-          <div className="flex flex-col items-center gap-3 text-center">
-            <p className="text-brand-dark">No hay un objetivo en curso. Las fichas se registran igual.</p>
-            <button type="button" className={btn} onClick={irAObjetivo}>
-              Crear objetivo
+        <Tienda saldo={t.saldo} premios={premios} onCanjear={(p) => setConfirmar({ que: "canje", p })} />
+        <div className="flex flex-wrap justify-between gap-2 items-center">
+          {premios.length === 0 ? (
+            <button type="button" className={btn} onClick={irAAjustes}>
+              Cargar premios
             </button>
-          </div>
-        )}
+          ) : (
+            <span className="text-sm opacity-60">Canjear descuenta el precio. Lo decide la familia.</span>
+          )}
+          <button type="button" className={btnGris} disabled={t.saldo <= 0} onClick={() => setConfirmar({ que: "cero" })}>
+            Poner en cero
+          </button>
+        </div>
       </div>
 
-      <DarFicha nombreChico={t.chico.nombre} onDar={dar} />
+      <DarFicha
+        nombreChico={t.chico.nombre}
+        conductas={activas}
+        sinConductas="Primero cargá las conductas en la pestaña Conductas y premios."
+        onDar={dar}
+      />
 
       <div className={card}>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className={titulo}>Quién le dio</div>
-          <div className="text-sm opacity-60">
-            {fechaDia(t.rango.inicio)} – {fechaDia(t.rango.fin)}
-          </div>
+          <div className={titulo}>Quién le dio y por qué</div>
+          <div className="text-sm opacity-60">últimas 8 semanas</div>
         </div>
         <div className="flex flex-wrap gap-2">
           <select value={persona} onChange={(e) => setPersona(e.target.value)} className="rounded-xl p-2 bg-white border-2 border-brand-blue/20">
@@ -204,59 +245,350 @@ function PestanaTablero({
               </option>
             ))}
           </select>
-          {(["todas", "estrellas", "caritas"] as const).map((c) => (
+          {(["todas", "estrellas", "caritas", "canjes"] as const).map((c) => (
             <button
               key={c}
               type="button"
               onClick={() => setClase(c)}
               className={`rounded-full px-4 py-2 font-bold ${clase === c ? "bg-brand-blue text-white" : "bg-white text-brand-blue"}`}
             >
-              {c === "todas" ? "Todo" : c === "estrellas" ? "⭐ Estrellas" : "🙂🙁 Caritas"}
+              {c === "todas" ? "Todo" : c === "estrellas" ? "⭐ Estrellas" : c === "caritas" ? "🙂🙁 Caritas" : "🎁 Canjes"}
             </button>
           ))}
         </div>
-        {anulando && (
-          <div className="bg-[#ffe3ef] rounded-2xl p-3 flex flex-wrap items-center gap-3">
-            <span className="flex-1">
-              ¿Anular la ficha de <b>{anulando.dada_por_nombre}</b> del {fechaCorta(anulando.created_at)}? Queda tachada y deja de contar.
-            </span>
-            <button type="button" className="bg-brand-pink text-white rounded-xl px-4 py-2 font-bold" onClick={() => void confirmarAnular()}>
-              Anular
-            </button>
-            <button type="button" className={btnGris} onClick={() => setAnulando(null)}>
-              No
-            </button>
+        {error && <div className={errorTxt}>{error}</div>}
+        <ListaFichas
+          fichas={fichas}
+          movimientos={movs}
+          puedeAnular={() => true}
+          onAnular={(f) => setConfirmar({ que: "ficha", f })}
+          onAnularMov={(m) => setConfirmar({ que: "mov", m })}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Pestaña Informe: estrellas por conducta y semana, y caritas
+// ---------------------------------------------------------------------------
+
+function PestanaInforme({ t }: { t: Tablero }) {
+  const inf = useMemo(() => informePorConducta(t.fichas, t.hoy), [t.fichas, t.hoy]);
+  const pictoDe = useMemo(() => new Map(t.conductas.map((c) => [c.id, c.picto])), [t.conductas]);
+  const caritas = t.fichas.filter((f) => !f.anulada_at && (f.tipo === "feliz" || f.tipo === "triste"));
+  const max = Math.max(1, ...inf.filas.flatMap((f) => Object.values(f.porSemana)));
+
+  return (
+    <div className="flex flex-col gap-5 w-full">
+      <div className={card}>
+        <div className={titulo}>Estrellas por conducta</div>
+        {inf.filas.length === 0 ? (
+          <p className="text-brand-blue opacity-80">Todavía no hay estrellas en las últimas 8 semanas.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr className="opacity-60">
+                  <th className="font-normal py-1">Conducta</th>
+                  {inf.semanas.map((w) => (
+                    <th key={w} className="font-normal text-center px-1 whitespace-nowrap">
+                      {fechaDia(w)}
+                    </th>
+                  ))}
+                  <th className="font-normal text-center px-1">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {inf.filas.map((f) => (
+                  <tr key={f.clave} className="border-t border-brand-blue/10">
+                    <td className="py-2 pr-2">
+                      <span className="flex items-center gap-2 font-bold text-brand-dark">
+                        <Picto id={f.clave === "sin" ? null : pictoDe.get(f.clave)} tam={28} />
+                        {f.texto}
+                      </span>
+                    </td>
+                    {inf.semanas.map((w) => {
+                      const v = f.porSemana[w] ?? 0;
+                      return (
+                        <td key={w} className="text-center px-1">
+                          <span
+                            className="inline-block min-w-[28px] rounded-md py-1"
+                            style={{ background: v ? `rgba(255,210,63,${0.25 + (0.75 * v) / max})` : "transparent" }}
+                          >
+                            {v || "·"}
+                          </span>
+                        </td>
+                      );
+                    })}
+                    <td className="text-center font-bold">{f.total}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="text-xs opacity-60 mt-2">Cada columna es una semana (desde el lunes). El Vale Doble cuenta 2.</p>
           </div>
         )}
-        {error && <div className={errorTxt}>{error}</div>}
-        <ListaFichas fichas={filtradas} puedeAnular={() => true} onAnular={setAnulando} />
       </div>
 
       <div className={card}>
         <div className={titulo}>Caritas</div>
-        {caritas.length === 0 ? (
-          <p className="text-brand-blue opacity-80">Sin caritas en este período.</p>
-        ) : (
-          <table className="w-full text-left">
-            <thead>
-              <tr className="text-sm opacity-60">
-                <th className="font-normal">Persona</th>
-                <th className="font-normal text-center">🙂</th>
-                <th className="font-normal text-center">🙁</th>
-              </tr>
-            </thead>
-            <tbody>
-              {caritas.map(([nombre, c]) => (
-                <tr key={nombre} className="border-t border-brand-blue/10">
-                  <td className="py-2 font-bold text-brand-dark">{nombre}</td>
-                  <td className="text-center">{c.feliz}</td>
-                  <td className="text-center">{c.triste}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <ListaFichas fichas={caritas} vacio="Sin caritas en las últimas 8 semanas." />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Pestaña Conductas y premios
+// ---------------------------------------------------------------------------
+
+function EditorItem({
+  tipo,
+  inicial,
+  onGuardar,
+  onCancelar,
+}: {
+  tipo: "conducta" | "premio";
+  inicial?: { texto: string; precio?: number; picto: number | null };
+  onGuardar: (d: { texto: string; precio: number; picto: number | null }) => Promise<string | null>;
+  onCancelar?: () => void;
+}) {
+  const [texto, setTexto] = useState(inicial?.texto ?? "");
+  const [precio, setPrecio] = useState(inicial?.precio ?? 10);
+  const [picto, setPicto] = useState<number | null>(inicial?.picto ?? null);
+  const [error, setError] = useState("");
+  const [guardando, setGuardando] = useState(false);
+
+  const guardar = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setGuardando(true);
+    const err = await onGuardar({ texto: texto.trim(), precio, picto });
+    setGuardando(false);
+    if (err) setError(err);
+    else if (!inicial) {
+      setTexto("");
+      setPrecio(10);
+      setPicto(null);
+      setError("");
+    }
+  };
+
+  return (
+    <form onSubmit={guardar} className="flex flex-col gap-3 bg-white/60 rounded-2xl p-3">
+      <div className="flex gap-2 items-center">
+        {tipo === "conducta" && <span className="font-bold text-brand-dark shrink-0">¡Gracias por</span>}
+        <input
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+          placeholder={tipo === "conducta" ? "terminar la tarea" : "Ir a la plaza"}
+          maxLength={60}
+          className={input}
+          required
+        />
+        {tipo === "premio" && (
+          <label className="flex items-center gap-1 shrink-0">
+            <input
+              type="number"
+              min={1}
+              max={1000}
+              value={precio}
+              onChange={(e) => setPrecio(Number(e.target.value))}
+              className={`${input} w-24`}
+              required
+            />
+            <span>⭐</span>
+          </label>
         )}
       </div>
+      <PictoPicker valor={picto} onCambio={setPicto} sugerencia={texto.split(" ").slice(-1)[0] ?? ""} />
+      {error && <div className={errorTxt}>{error}</div>}
+      <div className="flex gap-2">
+        <button type="submit" className={btn} disabled={guardando}>
+          {inicial ? "Guardar" : "Agregar"}
+        </button>
+        {onCancelar && (
+          <button type="button" className={btnGris} onClick={onCancelar}>
+            Cancelar
+          </button>
+        )}
+      </div>
+    </form>
+  );
+}
+
+function PestanaAjustes({ s, t, recargar }: { s: SesionAdmin; t: Tablero; recargar: () => void }) {
+  const [editando, setEditando] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [verArchivo, setVerArchivo] = useState(false);
+
+  const activas = t.conductas.filter((c) => c.activa);
+  const archivadas = t.conductas.filter((c) => !c.activa);
+  const premios = t.premios.filter((p) => p.activo);
+  const premiosArch = t.premios.filter((p) => !p.activo);
+
+  const resultado = (r: { ok: boolean; message?: string }) => {
+    if (!r.ok) return r.message || "No se pudo guardar.";
+    setEditando(null);
+    recargar();
+    return null;
+  };
+
+  const accion = async (r: Promise<{ ok: boolean; message?: string }>) => {
+    const res = await r;
+    setError(res.ok ? "" : res.message || "No se pudo.");
+    recargar();
+  };
+
+  const mover = (c: Conducta, delta: number) => {
+    const ids = activas.map((x) => x.id);
+    const i = ids.indexOf(c.id);
+    const j = i + delta;
+    if (j < 0 || j >= ids.length) return;
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+    void accion(api.conducta(s, "ordenar", { ids }));
+  };
+
+  return (
+    <div className="flex flex-col gap-5 w-full">
+      <div className={card}>
+        <div className={titulo}>Conductas</div>
+        <p className="text-brand-blue">
+          Lo que {t.chico.nombre} está aprendiendo, dicho en positivo. Quien da una estrella elige una de estas, y {t.chico.nombre} lo
+          ve como un agradecimiento. Conviene tener entre 3 y 5 (hasta {MAX_CONDUCTAS_ACTIVAS}).
+        </p>
+        {error && <div className={errorTxt}>{error}</div>}
+        <ul className="flex flex-col gap-2">
+          {activas.map((c, i) =>
+            editando === c.id ? (
+              <li key={c.id}>
+                <EditorItem
+                  tipo="conducta"
+                  inicial={{ texto: c.texto, picto: c.picto }}
+                  onGuardar={async (d) => resultado(await api.conducta(s, "editar", { conductaId: c.id, texto: d.texto, picto: d.picto }))}
+                  onCancelar={() => setEditando(null)}
+                />
+              </li>
+            ) : (
+              <li key={c.id} className="flex items-center gap-2 bg-white rounded-2xl p-2">
+                <Picto id={c.picto} tam={40} respaldo="⭐" />
+                <span className="flex-1 font-bold text-brand-dark">¡Gracias por {c.texto}!</span>
+                <button type="button" aria-label="Subir" className="px-2 text-lg disabled:opacity-20" disabled={i === 0} onClick={() => mover(c, -1)}>
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  aria-label="Bajar"
+                  className="px-2 text-lg disabled:opacity-20"
+                  disabled={i === activas.length - 1}
+                  onClick={() => mover(c, 1)}
+                >
+                  ↓
+                </button>
+                <button type="button" className="text-brand-blue font-bold px-2" onClick={() => setEditando(c.id)}>
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  className="text-brand-pink font-bold px-2"
+                  onClick={() => void accion(api.conducta(s, "archivar", { conductaId: c.id }))}
+                >
+                  Archivar
+                </button>
+              </li>
+            )
+          )}
+        </ul>
+        {activas.length < MAX_CONDUCTAS_ACTIVAS && (
+          <EditorItem
+            tipo="conducta"
+            onGuardar={async (d) => resultado(await api.conducta(s, "crear", { texto: d.texto, picto: d.picto }))}
+          />
+        )}
+      </div>
+
+      <div className={card}>
+        <div className={titulo}>Tienda de premios</div>
+        <p className="text-brand-blue">
+          Mejor si los eligen con {t.chico.nombre}. Conviene que haya premios baratos (algo para hoy) y caros (algo para esperar).
+        </p>
+        <ul className="flex flex-col gap-2">
+          {premios.map((p) =>
+            editando === p.id ? (
+              <li key={p.id}>
+                <EditorItem
+                  tipo="premio"
+                  inicial={{ texto: p.nombre, precio: p.precio, picto: p.picto }}
+                  onGuardar={async (d) =>
+                    resultado(await api.premio(s, "editar", { premioId: p.id, nombre: d.texto, precio: d.precio, picto: d.picto }))
+                  }
+                  onCancelar={() => setEditando(null)}
+                />
+              </li>
+            ) : (
+              <li key={p.id} className="flex items-center gap-2 bg-white rounded-2xl p-2">
+                <Picto id={p.picto} tam={40} respaldo="🎁" />
+                <span className="flex-1 font-bold text-brand-dark">{p.nombre}</span>
+                <span className="shrink-0">{p.precio} ⭐</span>
+                <button type="button" className="text-brand-blue font-bold px-2" onClick={() => setEditando(p.id)}>
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  className="text-brand-pink font-bold px-2"
+                  onClick={() => void accion(api.premio(s, "archivar", { premioId: p.id }))}
+                >
+                  Archivar
+                </button>
+              </li>
+            )
+          )}
+        </ul>
+        <EditorItem
+          tipo="premio"
+          onGuardar={async (d) => resultado(await api.premio(s, "crear", { nombre: d.texto, precio: d.precio, picto: d.picto }))}
+        />
+      </div>
+
+      {(archivadas.length > 0 || premiosArch.length > 0) && (
+        <div className={card}>
+          <button type="button" className="text-left font-bold text-brand-dark" onClick={() => setVerArchivo(!verArchivo)}>
+            {verArchivo ? "▾" : "▸"} Archivados ({archivadas.length + premiosArch.length})
+          </button>
+          {verArchivo && (
+            <ul className="flex flex-col gap-2">
+              {archivadas.map((c) => (
+                <li key={c.id} className="flex items-center gap-2 bg-white/60 rounded-2xl p-2">
+                  <Picto id={c.picto} tam={32} respaldo="⭐" />
+                  <span className="flex-1">{c.texto}</span>
+                  <button
+                    type="button"
+                    className="text-brand-blue font-bold px-2"
+                    onClick={() => void accion(api.conducta(s, "activar", { conductaId: c.id }))}
+                  >
+                    Reactivar
+                  </button>
+                </li>
+              ))}
+              {premiosArch.map((p) => (
+                <li key={p.id} className="flex items-center gap-2 bg-white/60 rounded-2xl p-2">
+                  <Picto id={p.picto} tam={32} respaldo="🎁" />
+                  <span className="flex-1">
+                    {p.nombre} · {p.precio} ⭐
+                  </span>
+                  <button
+                    type="button"
+                    className="text-brand-blue font-bold px-2"
+                    onClick={() => void accion(api.premio(s, "activar", { premioId: p.id }))}
+                  >
+                    Reactivar
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -393,119 +725,6 @@ function PestanaPersonas({ s, nombreChico }: { s: SesionAdmin; nombreChico: stri
 }
 
 // ---------------------------------------------------------------------------
-// Pestaña Objetivo
-// ---------------------------------------------------------------------------
-
-function PestanaObjetivo({ s, t, recargar }: { s: SesionAdmin; t: Tablero; recargar: () => void }) {
-  const [meta, setMeta] = useState(20);
-  const [premio, setPremio] = useState("");
-  const [inicio, setInicio] = useState(t.hoy);
-  const [fin, setFin] = useState(sumarDias(t.hoy, 6));
-  const [error, setError] = useState("");
-  const [confirmarCierre, setConfirmarCierre] = useState(false);
-
-  const crear = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    const r = await api.crearObjetivo(s, { meta, premio, inicio, fin });
-    if (!r.ok) setError(r.message || "No se pudo crear el objetivo.");
-    else {
-      setPremio("");
-      recargar();
-    }
-  };
-
-  const cerrar = async () => {
-    const r = await api.cerrarObjetivo(s);
-    setConfirmarCierre(false);
-    if (!r.ok) setError(r.message || "No se pudo cerrar.");
-    recargar();
-  };
-
-  return (
-    <div className="flex flex-col gap-5 w-full">
-      {t.objetivo ? (
-        <div className={card}>
-          <div className={titulo}>Objetivo en curso</div>
-          <Visualizador
-            acumuladas={t.objetivo.acumuladas}
-            meta={t.objetivo.meta}
-            premio={t.objetivo.premio}
-            fin={t.objetivo.fin}
-            diasRestantes={t.objetivo.diasRestantes}
-          />
-          <div className="text-sm opacity-70">
-            Del {fechaDia(t.objetivo.inicio)} al {fechaDia(t.objetivo.fin)}. Se cierra solo al terminar el último día.
-          </div>
-          {confirmarCierre ? (
-            <div className="flex gap-3 items-center flex-wrap">
-              <span>¿Cerrarlo ahora? Queda en el historial como {t.objetivo.acumuladas >= t.objetivo.meta ? "cumplido" : "no cumplido"}.</span>
-              <button type="button" className="bg-brand-pink text-white rounded-xl px-4 py-2 font-bold" onClick={() => void cerrar()}>
-                Cerrar
-              </button>
-              <button type="button" className={btnGris} onClick={() => setConfirmarCierre(false)}>
-                No
-              </button>
-            </div>
-          ) : (
-            <button type="button" className={btnGris} onClick={() => setConfirmarCierre(true)}>
-              Cerrar antes de tiempo
-            </button>
-          )}
-        </div>
-      ) : (
-        <form onSubmit={crear} className={card}>
-          <div className={titulo}>Nuevo objetivo</div>
-          <label className="flex flex-col gap-1">
-            <span className="font-bold text-brand-dark">¿Cuántas estrellas tiene que juntar?</span>
-            <input type="number" min={1} max={1000} value={meta} onChange={(e) => setMeta(Number(e.target.value))} className={input} required />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="font-bold text-brand-dark">¿Cuál es el premio?</span>
-            <input value={premio} onChange={(e) => setPremio(e.target.value)} placeholder="Ir al cine" maxLength={120} className={input} required />
-          </label>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="flex flex-col gap-1">
-              <span className="font-bold text-brand-dark">Desde</span>
-              <input type="date" value={inicio} onChange={(e) => setInicio(e.target.value)} className={input} required />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="font-bold text-brand-dark">Hasta</span>
-              <input type="date" value={fin} min={inicio} onChange={(e) => setFin(e.target.value)} className={input} required />
-            </label>
-          </div>
-          {error && <div className={errorTxt}>{error}</div>}
-          <button type="submit" className={btn}>
-            Crear objetivo
-          </button>
-        </form>
-      )}
-
-      <div className={card}>
-        <div className={titulo}>Historial</div>
-        {t.historial.length === 0 ? (
-          <p className="text-brand-blue opacity-80">Todavía no hay objetivos terminados.</p>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {t.historial.map((o) => (
-              <li key={o.id} className="bg-white rounded-2xl p-3 flex items-center gap-3">
-                <span className="text-2xl">{o.cumplido ? "🏆" : "➖"}</span>
-                <span className="flex-1">
-                  <b>{o.meta} ⭐ → {o.premio}</b>
-                  <span className="block text-sm opacity-60">
-                    {fechaDia(o.inicio)} – {fechaDia(o.fin)} · {o.cumplido ? "cumplido" : "no cumplido"}
-                  </span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Panel
 // ---------------------------------------------------------------------------
 
@@ -610,8 +829,9 @@ export default function Admin({ onIrAVinculo }: { onIrAVinculo?: () => void } = 
         {(
           [
             ["tablero", "Tablero"],
+            ["informe", "Informe"],
+            ["ajustes", "Conductas y premios"],
             ["personas", "Personas"],
-            ["objetivo", "Objetivo"],
           ] as const
         ).map(([k, txt]) => (
           <button
@@ -639,10 +859,11 @@ export default function Admin({ onIrAVinculo }: { onIrAVinculo?: () => void } = 
       {!t && !error && <p className="opacity-60">Cargando…</p>}
 
       {t && pestana === "tablero" && (
-        <PestanaTablero s={s} t={t} recargar={() => void recargar()} irAObjetivo={() => setPestana("objetivo")} />
+        <PestanaTablero s={s} t={t} recargar={() => void recargar()} irAAjustes={() => setPestana("ajustes")} />
       )}
       {t && pestana === "personas" && <PestanaPersonas s={s} nombreChico={t.chico.nombre} />}
-      {t && pestana === "objetivo" && <PestanaObjetivo s={s} t={t} recargar={() => void recargar()} />}
+      {t && pestana === "informe" && <PestanaInforme t={t} />}
+      {t && pestana === "ajustes" && <PestanaAjustes s={s} t={t} recargar={() => void recargar()} />}
     </div>
   );
 }

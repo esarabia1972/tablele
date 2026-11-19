@@ -14,27 +14,34 @@ import {
   sbUrl,
 } from "@/lib/supabase";
 import {
+  LLEVA_CONDUCTA,
   TOKEN_RE,
   UUID_RE,
   VALOR,
+  calcularSaldo,
   esTipo,
   limpiarTexto,
   validarFicha,
-  estaVencido,
   fechaArgentina,
   rangoUTC,
-  sumarEstrellas,
+  ultimoCero,
+  type Conducta,
   type Ficha,
-  type Objetivo,
+  type Movimiento,
 } from "@/lib/fichas";
 
 export const T_VINCULOS = "fichas_vinculos";
 export const T_FICHAS = "fichas";
-export const T_OBJETIVOS = "fichas_objetivos";
+export const T_CONDUCTAS = "fichas_conductas";
+export const T_PREMIOS = "fichas_premios";
+export const T_MOVIMIENTOS = "fichas_movimientos";
 
 export const COLS_FICHA =
-  "id,tipo,valor,comentario,dada_por,dada_por_nombre,created_at,anulada_at";
-export const COLS_OBJETIVO = "id,meta,premio,inicio,fin,cerrado_at,cumplido";
+  "id,tipo,valor,comentario,dada_por,dada_por_nombre,created_at,anulada_at,conducta_id,conducta_texto";
+export const COLS_CONDUCTA = "id,texto,picto,orden,activa";
+export const COLS_PREMIO = "id,nombre,precio,picto,orden,activo";
+export const COLS_MOV =
+  "id,tipo,premio_id,premio_nombre,costo,saldo_antes,hecho_por_nombre,created_at,anulado_at";
 
 export function hoyAR(): string {
   return fechaArgentina(new Date());
@@ -176,28 +183,29 @@ export async function fichasEnRango(
   );
 }
 
-/**
- * Objetivo activo del chico. Si el período ya terminó, lo cierra (cumplido o
- * no según la suma) y devuelve null: no hay cron, se cierra al mirarlo.
- */
-export async function objetivoActivo(accountId: string, username: string): Promise<Objetivo | null> {
-  const filas = await sbGet<Objetivo[]>(
-    `/rest/v1/${T_OBJETIVOS}?${filtroChico(accountId, username)}&cerrado_at=is.null&select=${COLS_OBJETIVO}`
+// --- Saldo -------------------------------------------------------------------
+
+/** Todos los movimientos del chico (canjes y ceros). Son pocos: un puñado por semana. */
+export async function movimientosDe(accountId: string, username: string): Promise<Movimiento[]> {
+  return sbGet<Movimiento[]>(
+    `/rest/v1/${T_MOVIMIENTOS}?${filtroChico(accountId, username)}&select=${COLS_MOV}&order=created_at.desc&limit=5000`
   );
-  const obj = filas?.[0];
-  if (!obj) return null;
-  if (!estaVencido(obj, hoyAR())) return obj;
-  await cerrarObjetivo(accountId, username, obj);
-  return null;
 }
 
-export async function cerrarObjetivo(accountId: string, username: string, obj: Objetivo) {
-  const fichas = await fichasEnRango(accountId, username, obj.inicio, obj.fin);
-  const cumplido = sumarEstrellas(fichas, obj) >= obj.meta;
-  await sbPatch(
-    `/rest/v1/${T_OBJETIVOS}?id=eq.${obj.id}&cerrado_at=is.null`,
-    { cerrado_at: new Date().toISOString(), cumplido }
+/** Saldo actual, con las fichas desde el último cero vigente. */
+export async function saldoActual(
+  accountId: string,
+  username: string,
+  movs?: Movimiento[]
+): Promise<{ saldo: number; movs: Movimiento[] }> {
+  const m = movs ?? (await movimientosDe(accountId, username));
+  const desde = ultimoCero(m);
+  const filtroDesde = desde ? `&created_at=gt.${encodeURIComponent(desde)}` : "";
+  const fichas = await sbGet<Pick<Ficha, "tipo" | "created_at" | "anulada_at">[]>(
+    `/rest/v1/${T_FICHAS}?${filtroChico(accountId, username)}${filtroDesde}` +
+      `&anulada_at=is.null&valor=gt.0&select=tipo,created_at,anulada_at&limit=20000`
   );
+  return { saldo: calcularSaldo(fichas, m), movs: m };
 }
 
 // --- Dar y anular -----------------------------------------------------------
@@ -220,6 +228,23 @@ export async function darFicha(p: {
   const err = validarFicha(tipo, comentario);
   if (err || !esTipo(tipo)) return error(400, "ficha-invalida", err ?? undefined);
 
+  // v2: estrella y Vale Doble llevan una conducta activa de ESE chico; las
+  // caritas son libres. El texto se congela en la ficha.
+  let conducta: Conducta | null = null;
+  if (LLEVA_CONDUCTA[tipo]) {
+    const conductaId = String(p.body.conductaId || "").trim().toLowerCase();
+    if (!UUID_RE.test(conductaId)) {
+      return error(400, "falta-conducta", "Elegí por qué se gana la estrella.");
+    }
+    const filas = await sbGet<Conducta[]>(
+      `/rest/v1/${T_CONDUCTAS}?id=eq.${conductaId}&${filtroChico(p.accountId, p.username)}&select=${COLS_CONDUCTA}`
+    );
+    conducta = filas?.[0] ?? null;
+    if (!conducta || !conducta.activa) {
+      return error(400, "conducta-inactiva", "Esa conducta ya no está en la lista. Volvé a elegir.");
+    }
+  }
+
   await sbInsert(
     T_FICHAS,
     [
@@ -232,6 +257,8 @@ export async function darFicha(p: {
         comentario,
         dada_por: p.dadaPor,
         dada_por_nombre: p.dadaPorNombre,
+        conducta_id: conducta?.id ?? null,
+        conducta_texto: conducta?.texto ?? null,
       },
     ],
     true
