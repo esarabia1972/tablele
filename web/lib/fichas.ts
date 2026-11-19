@@ -40,8 +40,11 @@ export const VENTANA_ANULAR_MS = 15 * 60 * 1000;
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const FECHA_RE = /^\d{4}-\d{2}-\d{2}$/;
-/** Token de invitación: 32 bytes en base64url. */
-export const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
+/**
+ * Token de invitación en base64url: 16 bytes (22 caracteres, 128 bits) desde
+ * que el enlace se acortó; se siguen aceptando los de 32 bytes (43) ya repartidos.
+ */
+export const TOKEN_RE = /^(?:[A-Za-z0-9_-]{22}|[A-Za-z0-9_-]{43})$/;
 
 export type Ficha = {
   id: string;

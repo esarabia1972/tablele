@@ -4,6 +4,7 @@
 //   node --experimental-strip-types lib/fichas.run-tests.ts
 
 import {
+  TOKEN_RE,
   VALOR,
   diasRestantes,
   estaVencido,
@@ -107,6 +108,12 @@ check(
   fraseParaChico(f({ tipo: "doble", dada_por_nombre: "Seño Ana", comentario: "ayudó" })) === "Seño Ana te dio un Vale Doble: ayudó"
 );
 check("frase de carita triste", fraseParaChico(f({ tipo: "triste", comentario: "gritó" })).startsWith("Mamá anotó una carita triste"));
+
+// --- token
+check("token corto (16 bytes) válido", TOKEN_RE.test("jm3cwyzQ-6dDYNr4IloDzr"));
+check("token largo viejo (32 bytes) válido", TOKEN_RE.test("jm3cwyzQ-6dDYNr4IloDzre1dmP8SgNike5mTPrJFas"));
+check("token de otro largo falla", !TOKEN_RE.test("abc"));
+check("token con caracteres raros falla", !TOKEN_RE.test("jm3cwyzQ-6dDYNr4IloDz,"));
 
 console.log(`${corridos - fallas}/${corridos} ok`);
 if (fallas) process.exit(1);

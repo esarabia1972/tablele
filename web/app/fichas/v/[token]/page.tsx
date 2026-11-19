@@ -1,30 +1,31 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import type { Metadata } from "next";
 import { TOKEN_RE } from "@/lib/fichas";
-import { base, setToken } from "@/lib/fichas-cliente";
+import Entrar from "./Entrar";
 
-// Enlace de invitación. Guarda el token en el dispositivo y lo saca de la URL
-// (replace, no push) para que no quede en el historial ni en una captura.
+// Enlace de invitación. El servidor sólo arma la vista previa que muestran
+// WhatsApp y compañía (título, descripción, ícono); no consulta la base, así
+// que la vista previa no revela el nombre del chico a quien vea el enlace.
 
-export default function Invitacion() {
-  const { token } = useParams<{ token: string }>();
-  const [invalido, setInvalido] = useState(false);
+type Props = { params: Promise<{ token: string }> };
 
-  useEffect(() => {
-    if (!TOKEN_RE.test(token || "")) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- validación del parámetro al montar
-      setInvalido(true);
-      return;
-    }
-    setToken(token);
-    window.location.replace(`${base()}/`);
-  }, [token]);
+export async function generateMetadata(): Promise<Metadata> {
+  const titulo = "Te invitaron a dar Fichas 🏅";
+  const descripcion = "Tocá el enlace para darle estrellas cuando se porte bien.";
+  return {
+    title: titulo,
+    description: descripcion,
+    robots: { index: false, follow: false },
+    openGraph: {
+      title: titulo,
+      description: descripcion,
+      siteName: "Tablele Fichas",
+      images: [{ url: "/icon.png" }],
+      type: "website",
+    },
+  };
+}
 
-  return (
-    <p className="pt-16 text-brand-dark text-lg text-center">
-      {invalido ? "Este enlace no es válido. Pedile uno nuevo a la familia." : "Entrando…"}
-    </p>
-  );
+export default async function Invitacion({ params }: Props) {
+  const { token } = await params;
+  return <Entrar token={TOKEN_RE.test(token) ? token : ""} />;
 }

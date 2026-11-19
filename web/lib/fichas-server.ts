@@ -130,7 +130,7 @@ export type Vinculo = {
 };
 
 export function nuevoToken(): string {
-  return randomBytes(32).toString("base64url");
+  return randomBytes(16).toString("base64url");
 }
 
 export function hashToken(token: string): string {
