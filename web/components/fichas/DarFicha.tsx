@@ -124,7 +124,7 @@ export default function DarFicha({
                     conducta?.id === c.id ? "border-brand-green" : "border-transparent"
                   }`}
                 >
-                  <Picto id={c.picto} tam={44} respaldo="⭐" />
+                  <Picto id={c.picto} foto={c.foto} tam={44} respaldo="⭐" />
                   <span className="font-bold text-brand-dark leading-tight">{c.texto}</span>
                 </button>
               ))}

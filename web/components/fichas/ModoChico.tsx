@@ -20,7 +20,7 @@ export default function ModoChico({ tablero, onSalir }: { tablero: Tablero; onSa
   const alcanza = premios.filter((p) => p.precio <= saldo);
   const festejado = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pictoDe = new Map(tablero.conductas.map((c) => [c.id, c.picto]));
+  const conductaDe = new Map(tablero.conductas.map((c) => [c.id, c]));
 
   useEffect(() => {
     if (alcanza.length && !festejado.current) {
@@ -67,8 +67,8 @@ export default function ModoChico({ tablero, onSalir }: { tablero: Tablero; onSa
               f.tipo === "triste" ? "bg-gray-100" : f.tipo === "feliz" ? "bg-white" : "bg-[#fff6cf]"
             }`}
           >
-            {f.conducta_id && pictoDe.get(f.conducta_id) ? (
-              <Picto id={pictoDe.get(f.conducta_id)} tam={64} />
+            {f.conducta_id && (conductaDe.get(f.conducta_id)?.picto || conductaDe.get(f.conducta_id)?.foto) ? (
+              <Picto id={conductaDe.get(f.conducta_id)?.picto} foto={conductaDe.get(f.conducta_id)?.foto} tam={64} />
             ) : (
               <span className="text-5xl leading-none">{EMOJI[f.tipo]}</span>
             )}

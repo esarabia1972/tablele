@@ -7,14 +7,15 @@ import {
   error,
   filtroChico,
   leerJson,
+  limpiarFoto,
   sbInsert,
   sbPatch,
 } from "@/lib/fichas-server";
 
 // Tienda de premios del chico. Sólo administradoras. Se archivan, no se
 // borran: los canjes viejos guardan el nombre.
-//   crear    { nombre, precio, picto? }
-//   editar   { premioId, nombre, precio, picto? }
+//   crear    { nombre, precio, picto?, foto? }
+//   editar   { premioId, nombre, precio, picto?, foto? }
 //   archivar { premioId }  /  activar { premioId }
 
 export async function POST(request: Request) {
@@ -32,7 +33,12 @@ export async function POST(request: Request) {
         const nombre = limpiarTexto(body.nombre);
         const err = validarPremio(nombre, body.precio);
         if (err) return error(400, "premio-invalido", err);
-        const datos = { nombre, precio: Number(body.precio), picto: limpiarPicto(body.picto) };
+        const datos = {
+          nombre,
+          precio: Number(body.precio),
+          picto: limpiarPicto(body.picto),
+          foto: limpiarFoto(body.foto, admin.accountId, admin.username),
+        };
         if (body.accion === "crear") {
           await sbInsert(T_PREMIOS, [{ account_id: admin.accountId, username: admin.username, ...datos }]);
           return NextResponse.json({ ok: true });

@@ -53,3 +53,7 @@ alter table fichas add column if not exists conducta_texto text;
 alter table fichas_conductas   enable row level security;
 alter table fichas_premios     enable row level security;
 alter table fichas_movimientos enable row level security;
+
+-- Foto propia (jpg/png) además del pictograma, en conductas y premios.
+alter table fichas_conductas add column if not exists foto text;
+alter table fichas_premios   add column if not exists foto text;

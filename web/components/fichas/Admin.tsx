@@ -24,7 +24,7 @@ import DarFicha from "./DarFicha";
 import ListaFichas from "./ListaFichas";
 import ModoChico from "./ModoChico";
 import Picto from "./Picto";
-import PictoPicker from "./PictoPicker";
+import PictoPicker, { type Imagen } from "./PictoPicker";
 import Tienda from "./Tienda";
 import { btn, btnGris, card, errorTxt, fechaCorta, fechaDia, input, titulo } from "./ui";
 
@@ -275,7 +275,7 @@ function PestanaTablero({
 
 function PestanaInforme({ t }: { t: Tablero }) {
   const inf = useMemo(() => informePorConducta(t.fichas, t.hoy), [t.fichas, t.hoy]);
-  const pictoDe = useMemo(() => new Map(t.conductas.map((c) => [c.id, c.picto])), [t.conductas]);
+  const conductaDe = useMemo(() => new Map(t.conductas.map((c) => [c.id, c])), [t.conductas]);
   const caritas = t.fichas.filter((f) => !f.anulada_at && (f.tipo === "feliz" || f.tipo === "triste"));
   const max = Math.max(1, ...inf.filas.flatMap((f) => Object.values(f.porSemana)));
 
@@ -304,7 +304,7 @@ function PestanaInforme({ t }: { t: Tablero }) {
                   <tr key={f.clave} className="border-t border-brand-blue/10">
                     <td className="py-2 pr-2">
                       <span className="flex items-center gap-2 font-bold text-brand-dark">
-                        <Picto id={f.clave === "sin" ? null : pictoDe.get(f.clave)} tam={28} />
+                        <Picto id={conductaDe.get(f.clave)?.picto} foto={conductaDe.get(f.clave)?.foto} tam={28} />
                         {f.texto}
                       </span>
                     </td>
@@ -344,32 +344,34 @@ function PestanaInforme({ t }: { t: Tablero }) {
 // ---------------------------------------------------------------------------
 
 function EditorItem({
+  s,
   tipo,
   inicial,
   onGuardar,
   onCancelar,
 }: {
+  s: SesionAdmin;
   tipo: "conducta" | "premio";
-  inicial?: { texto: string; precio?: number; picto: number | null };
-  onGuardar: (d: { texto: string; precio: number; picto: number | null }) => Promise<string | null>;
+  inicial?: { texto: string; precio?: number; picto: number | null; foto: string | null };
+  onGuardar: (d: { texto: string; precio: number; picto: number | null; foto: string | null }) => Promise<string | null>;
   onCancelar?: () => void;
 }) {
   const [texto, setTexto] = useState(inicial?.texto ?? "");
   const [precio, setPrecio] = useState(inicial?.precio ?? 10);
-  const [picto, setPicto] = useState<number | null>(inicial?.picto ?? null);
+  const [imagen, setImagen] = useState<Imagen>({ picto: inicial?.picto ?? null, foto: inicial?.foto ?? null });
   const [error, setError] = useState("");
   const [guardando, setGuardando] = useState(false);
 
   const guardar = async (e: React.FormEvent) => {
     e.preventDefault();
     setGuardando(true);
-    const err = await onGuardar({ texto: texto.trim(), precio, picto });
+    const err = await onGuardar({ texto: texto.trim(), precio, picto: imagen.picto, foto: imagen.foto });
     setGuardando(false);
     if (err) setError(err);
     else if (!inicial) {
       setTexto("");
       setPrecio(10);
-      setPicto(null);
+      setImagen({ picto: null, foto: null });
       setError("");
     }
   };
@@ -401,7 +403,15 @@ function EditorItem({
           </label>
         )}
       </div>
-      <PictoPicker valor={picto} onCambio={setPicto} sugerencia={texto.split(" ").slice(-1)[0] ?? ""} />
+      <PictoPicker
+        valor={imagen}
+        onCambio={setImagen}
+        sugerencia={texto.split(" ").slice(-1)[0] ?? ""}
+        subirFoto={async (dataUrl) => {
+          const r = await api.foto(s, dataUrl);
+          return r.ok ? { url: r.url } : { error: r.message };
+        }}
+      />
       {error && <div className={errorTxt}>{error}</div>}
       <div className="flex gap-2">
         <button type="submit" className={btn} disabled={guardando}>
@@ -463,15 +473,16 @@ function PestanaAjustes({ s, t, recargar }: { s: SesionAdmin; t: Tablero; recarg
             editando === c.id ? (
               <li key={c.id}>
                 <EditorItem
+                  s={s}
                   tipo="conducta"
-                  inicial={{ texto: c.texto, picto: c.picto }}
-                  onGuardar={async (d) => resultado(await api.conducta(s, "editar", { conductaId: c.id, texto: d.texto, picto: d.picto }))}
+                  inicial={{ texto: c.texto, picto: c.picto, foto: c.foto }}
+                  onGuardar={async (d) => resultado(await api.conducta(s, "editar", { conductaId: c.id, texto: d.texto, picto: d.picto, foto: d.foto }))}
                   onCancelar={() => setEditando(null)}
                 />
               </li>
             ) : (
               <li key={c.id} className="flex items-center gap-2 bg-white rounded-2xl p-2">
-                <Picto id={c.picto} tam={40} respaldo="⭐" />
+                <Picto id={c.picto} foto={c.foto} tam={40} respaldo="⭐" />
                 <span className="flex-1 font-bold text-brand-dark">¡Gracias por {c.texto}!</span>
                 <button type="button" aria-label="Subir" className="px-2 text-lg disabled:opacity-20" disabled={i === 0} onClick={() => mover(c, -1)}>
                   ↑
@@ -501,8 +512,9 @@ function PestanaAjustes({ s, t, recargar }: { s: SesionAdmin; t: Tablero; recarg
         </ul>
         {activas.length < MAX_CONDUCTAS_ACTIVAS && (
           <EditorItem
+            s={s}
             tipo="conducta"
-            onGuardar={async (d) => resultado(await api.conducta(s, "crear", { texto: d.texto, picto: d.picto }))}
+            onGuardar={async (d) => resultado(await api.conducta(s, "crear", { texto: d.texto, picto: d.picto, foto: d.foto }))}
           />
         )}
       </div>
@@ -517,17 +529,18 @@ function PestanaAjustes({ s, t, recargar }: { s: SesionAdmin; t: Tablero; recarg
             editando === p.id ? (
               <li key={p.id}>
                 <EditorItem
+                  s={s}
                   tipo="premio"
-                  inicial={{ texto: p.nombre, precio: p.precio, picto: p.picto }}
+                  inicial={{ texto: p.nombre, precio: p.precio, picto: p.picto, foto: p.foto }}
                   onGuardar={async (d) =>
-                    resultado(await api.premio(s, "editar", { premioId: p.id, nombre: d.texto, precio: d.precio, picto: d.picto }))
+                    resultado(await api.premio(s, "editar", { premioId: p.id, nombre: d.texto, precio: d.precio, picto: d.picto, foto: d.foto }))
                   }
                   onCancelar={() => setEditando(null)}
                 />
               </li>
             ) : (
               <li key={p.id} className="flex items-center gap-2 bg-white rounded-2xl p-2">
-                <Picto id={p.picto} tam={40} respaldo="🎁" />
+                <Picto id={p.picto} foto={p.foto} tam={40} respaldo="🎁" />
                 <span className="flex-1 font-bold text-brand-dark">{p.nombre}</span>
                 <span className="shrink-0">{p.precio} ⭐</span>
                 <button type="button" className="text-brand-blue font-bold px-2" onClick={() => setEditando(p.id)}>
@@ -545,8 +558,9 @@ function PestanaAjustes({ s, t, recargar }: { s: SesionAdmin; t: Tablero; recarg
           )}
         </ul>
         <EditorItem
+          s={s}
           tipo="premio"
-          onGuardar={async (d) => resultado(await api.premio(s, "crear", { nombre: d.texto, precio: d.precio, picto: d.picto }))}
+          onGuardar={async (d) => resultado(await api.premio(s, "crear", { nombre: d.texto, precio: d.precio, picto: d.picto, foto: d.foto }))}
         />
       </div>
 
@@ -559,7 +573,7 @@ function PestanaAjustes({ s, t, recargar }: { s: SesionAdmin; t: Tablero; recarg
             <ul className="flex flex-col gap-2">
               {archivadas.map((c) => (
                 <li key={c.id} className="flex items-center gap-2 bg-white/60 rounded-2xl p-2">
-                  <Picto id={c.picto} tam={32} respaldo="⭐" />
+                  <Picto id={c.picto} foto={c.foto} tam={32} respaldo="⭐" />
                   <span className="flex-1">{c.texto}</span>
                   <button
                     type="button"
@@ -572,7 +586,7 @@ function PestanaAjustes({ s, t, recargar }: { s: SesionAdmin; t: Tablero; recarg
               ))}
               {premiosArch.map((p) => (
                 <li key={p.id} className="flex items-center gap-2 bg-white/60 rounded-2xl p-2">
-                  <Picto id={p.picto} tam={32} respaldo="🎁" />
+                  <Picto id={p.picto} foto={p.foto} tam={32} respaldo="🎁" />
                   <span className="flex-1">
                     {p.nombre} · {p.precio} ⭐
                   </span>

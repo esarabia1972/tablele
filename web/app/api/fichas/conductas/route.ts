@@ -13,6 +13,7 @@ import {
   error,
   filtroChico,
   leerJson,
+  limpiarFoto,
   sbInsert,
   sbPatch,
 } from "@/lib/fichas-server";
@@ -20,8 +21,8 @@ import { sbGet } from "@/lib/supabase";
 
 // Conductas del chico. Sólo administradoras. Se archivan, no se borran: las
 // fichas viejas guardan su texto, pero el informe agrupa por id.
-//   crear    { texto, picto? }
-//   editar   { conductaId, texto, picto? }
+//   crear    { texto, picto?, foto? }
+//   editar   { conductaId, texto, picto?, foto? }
 //   archivar { conductaId }   /  activar { conductaId }
 //   ordenar  { ids: string[] }
 
@@ -48,7 +49,14 @@ export async function POST(request: Request) {
         const n = await activas();
         if (n >= MAX_CONDUCTAS_ACTIVAS) return lleno();
         await sbInsert(T_CONDUCTAS, [
-          { account_id: admin.accountId, username: admin.username, texto, picto: limpiarPicto(body.picto), orden: n },
+          {
+            account_id: admin.accountId,
+            username: admin.username,
+            texto,
+            picto: limpiarPicto(body.picto),
+            foto: limpiarFoto(body.foto, admin.accountId, admin.username),
+            orden: n,
+          },
         ]);
         return NextResponse.json({ ok: true });
       }
@@ -57,7 +65,11 @@ export async function POST(request: Request) {
         const texto = limpiarTexto(body.texto);
         const err = validarConducta(texto);
         if (err) return error(400, "conducta-invalida", err);
-        const r = await sbPatch(`/rest/v1/${T_CONDUCTAS}?id=eq.${id}&${chico}`, { texto, picto: limpiarPicto(body.picto) });
+        const r = await sbPatch(`/rest/v1/${T_CONDUCTAS}?id=eq.${id}&${chico}`, {
+          texto,
+          picto: limpiarPicto(body.picto),
+          foto: limpiarFoto(body.foto, admin.accountId, admin.username),
+        });
         return r.length ? NextResponse.json({ ok: true }) : error(404, "no-encontrada");
       }
       case "archivar":

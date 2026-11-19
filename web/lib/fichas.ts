@@ -77,6 +77,8 @@ export type Conducta = {
   id: string;
   texto: string;
   picto: number | null;
+  /** URL de una foto propia subida a Supabase Storage. Si está, manda sobre el picto. */
+  foto: string | null;
   orden: number;
   activa: boolean;
 };
@@ -86,6 +88,7 @@ export type Premio = {
   nombre: string;
   precio: number;
   picto: number | null;
+  foto: string | null;
   orden: number;
   activo: boolean;
 };

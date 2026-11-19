@@ -156,6 +156,7 @@ export const api = {
     post<{ saldo: number }>("/api/fichas/movimiento", { ...auth(s), accion: "canjear", id, premioId, nombre: s.miNombre }),
   cero: (s: SesionAdmin, id = nuevoId()) =>
     post("/api/fichas/movimiento", { ...auth(s), accion: "cero", id, nombre: s.miNombre }),
+  foto: (s: SesionAdmin, dataUrl: string) => post<{ url: string }>("/api/fichas/foto", { ...auth(s), dataUrl }),
   anularMovimiento: (s: SesionAdmin, movimientoId: string) =>
     post("/api/fichas/movimiento", { ...auth(s), accion: "anular", movimientoId }),
 
@@ -192,5 +193,29 @@ export async function buscarPictos(q: string): Promise<number[]> {
     return data.slice(0, 18).map((p) => p._id);
   } catch {
     return [];
+  }
+}
+
+/** Reduce una foto a `max` px y la devuelve como JPEG base64 (igual que Tablele). */
+export async function comprimirImagen(file: File, max = 600): Promise<string> {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((res, rej) => {
+      const i = new Image();
+      i.onload = () => res(i);
+      i.onerror = rej;
+      i.src = url;
+    });
+    const scale = Math.min(1, max / Math.max(img.width, img.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(img.width * scale);
+    canvas.height = Math.round(img.height * scale);
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = "#fff"; // un PNG con transparencia no queda negro al pasar a JPEG
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", 0.82);
+  } finally {
+    URL.revokeObjectURL(url);
   }
 }

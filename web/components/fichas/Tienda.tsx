@@ -36,7 +36,7 @@ export default function Tienda({
                   alcanza ? "bg-[#fff6cf] border-[#ffd23f] animate-glow" : "bg-white border-transparent"
                 }`}
               >
-                <Picto id={p.picto} tam={grande ? 80 : 56} respaldo="🎁" />
+                <Picto id={p.picto} foto={p.foto} tam={grande ? 80 : 56} respaldo="🎁" />
                 <div className={`font-bold text-brand-dark leading-tight ${grande ? "text-xl" : ""}`}>{p.nombre}</div>
                 <div className="text-sm text-brand-dark">{p.precio} ⭐</div>
                 {alcanza ? (

@@ -3,20 +3,26 @@
 import { useState } from "react";
 import { urlPicto } from "@/lib/fichas";
 
-/** Pictograma de ARASAAC por id. Sin id (o si no carga), muestra el respaldo. */
+/**
+ * Imagen de una conducta o un premio: la foto propia si hay, si no el
+ * pictograma de ARASAAC, y si no (o si no carga) el respaldo en texto.
+ */
 export default function Picto({
   id,
+  foto,
   tam = 40,
   respaldo = "",
   className = "",
 }: {
   id: number | null | undefined;
+  foto?: string | null;
   tam?: number;
   respaldo?: string;
   className?: string;
 }) {
-  const [fallo, setFallo] = useState(false);
-  if (!id || fallo) {
+  const [fallo, setFallo] = useState<string | null>(null);
+  const src = foto && fallo !== foto ? foto : id && fallo !== `p${id}` ? urlPicto(id) : null;
+  if (!src) {
     return respaldo ? (
       <span className={`inline-flex items-center justify-center ${className}`} style={{ width: tam, height: tam, fontSize: tam * 0.6 }}>
         {respaldo}
@@ -24,15 +30,15 @@ export default function Picto({
     ) : null;
   }
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- imagen externa de ARASAAC, sin optimizador
+    // eslint-disable-next-line @next/next/no-img-element -- imagen externa (ARASAAC o Storage), sin optimizador
     <img
-      src={urlPicto(id)}
+      src={src}
       alt=""
       width={tam}
       height={tam}
       loading="lazy"
-      onError={() => setFallo(true)}
-      className={`object-contain ${className}`}
+      onError={() => setFallo(src === foto ? foto : `p${id}`)}
+      className={`${foto && src === foto ? "object-cover rounded-lg" : "object-contain"} ${className}`}
       style={{ width: tam, height: tam }}
     />
   );

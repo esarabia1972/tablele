@@ -5,6 +5,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { ACCOUNT_ID_RE, EMAIL_RE, USERNAME_RE, normalizarEmail, type Rol } from "@/lib/claves";
 import {
+  BUCKET_FOTOS,
   SupabaseError,
   TABLA_DATOS,
   hayStorage,
@@ -38,8 +39,8 @@ export const T_MOVIMIENTOS = "fichas_movimientos";
 
 export const COLS_FICHA =
   "id,tipo,valor,comentario,dada_por,dada_por_nombre,created_at,anulada_at,conducta_id,conducta_texto";
-export const COLS_CONDUCTA = "id,texto,picto,orden,activa";
-export const COLS_PREMIO = "id,nombre,precio,picto,orden,activo";
+export const COLS_CONDUCTA = "id,texto,picto,foto,orden,activa";
+export const COLS_PREMIO = "id,nombre,precio,picto,foto,orden,activo";
 export const COLS_MOV =
   "id,tipo,premio_id,premio_nombre,costo,saldo_antes,hecho_por_nombre,created_at,anulado_at";
 
@@ -156,6 +157,23 @@ export async function autenticarVinculo(request: Request): Promise<Vinculo | Res
     return error(401, "token-revocado", "Este enlace ya no está activo. Pedile uno nuevo a la familia.");
   }
   return v;
+}
+
+// --- Fotos propias ---------------------------------------------------------------
+
+/** Carpeta pública donde van las fotos de conductas y premios de un chico. */
+export function prefijoFotos(accountId: string, username: string): string {
+  return `${accountId}/${username}/fichas/`;
+}
+
+/**
+ * Una foto sólo se acepta si es una URL de NUESTRO bucket, en la carpeta de
+ * ESE chico. Así nadie guarda un enlace a cualquier sitio.
+ */
+export function limpiarFoto(raw: unknown, accountId: string, username: string): string | null {
+  if (typeof raw !== "string" || !raw) return null;
+  const base = sbUrl(`/storage/v1/object/public/${BUCKET_FOTOS}/${prefijoFotos(accountId, username)}`);
+  return raw.startsWith(base) && /^[A-Za-z0-9._-]+$/.test(raw.slice(base.length)) ? raw : null;
 }
 
 // --- Chico y objetivo -------------------------------------------------------
