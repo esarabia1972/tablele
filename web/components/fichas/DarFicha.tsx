@@ -9,6 +9,7 @@ import {
   type Conducta,
   type TipoFicha,
 } from "@/lib/fichas";
+import Estrellas from "./Estrellas";
 import Picto from "./Picto";
 import { btn, card, errorTxt, input } from "./ui";
 
@@ -98,12 +99,11 @@ export default function DarFicha({
             >
               <Picto id={c.picto} foto={c.foto} tam={56} respaldo="⭐" />
               <span className="flex-1 min-w-0 font-bold text-brand-dark leading-tight">{c.texto}</span>
-              <span
-                className={`shrink-0 rounded-full px-2 py-1 text-sm font-bold ${
-                  c.doble ? "bg-brand-orange text-white" : "bg-white/80 text-brand-dark"
-                }`}
-              >
-                {c.doble ? "⭐⭐ Vale doble" : "⭐"}
+              <span className="flex flex-col items-center shrink-0">
+                <Estrellas doble={c.doble} tam={56} />
+                {c.doble && (
+                  <span className="rounded-full px-2 text-xs font-bold bg-brand-orange text-white -mt-1">Vale doble</span>
+                )}
               </span>
             </button>
           ))}

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { EMOJI, fraseParaChico, type Ficha, type Premio } from "@/lib/fichas";
 import { sndWin, speak } from "@/lib/audio";
 import type { Tablero } from "@/lib/fichas-cliente";
+import Estrellas from "./Estrellas";
 import MantenerApretado from "./MantenerApretado";
 import Picto from "./Picto";
 import Tienda from "./Tienda";
@@ -113,15 +114,14 @@ export default function ModoChico({
               )}
               <span className="flex-1 min-w-0">
                 <span className="block text-xl text-brand-dark font-bold">{f.dada_por_nombre}</span>
-                {f.conducta_texto && (
-                  <span className="block text-lg text-brand-dark">
-                    ¡Gracias por {f.conducta_texto}! {EMOJI[f.tipo]}
-                  </span>
-                )}
+                {f.conducta_texto && <span className="block text-lg text-brand-dark">¡Gracias por {f.conducta_texto}!</span>}
                 {f.comentario && <span className="block text-lg text-gray-700 break-words">{f.comentario}</span>}
                 <span className="block text-sm opacity-50">{fechaCorta(f.created_at)}</span>
               </span>
-              <span className="text-2xl" aria-hidden>
+              {(f.tipo === "estrella" || f.tipo === "doble") && c && (c.picto || c.foto) && (
+                <Estrellas doble={f.tipo === "doble"} tam={64} />
+              )}
+              <span className="text-xl opacity-60" aria-hidden>
                 🔊
               </span>
             </button>
