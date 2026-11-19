@@ -80,7 +80,7 @@ export default function Vinculado({
       <DarFicha
         nombreChico={yo.chico.nombre}
         conductas={yo.conductas}
-        sinConductas="Todavía no hay conductas cargadas. Avisale a la familia."
+        sinConductas="Todavía no hay conductas activas. Avisale a la familia."
         onDar={dar}
       />
       <div className={card}>

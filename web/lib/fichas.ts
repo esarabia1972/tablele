@@ -46,8 +46,8 @@ export const MAX_META = 1000;
 export const MAX_TEXTO_CONDUCTA = 60;
 export const MAX_NOMBRE_PREMIO = 60;
 export const MAX_PRECIO = 1000;
-/** La técnica recomienda 3 a 5; 8 da margen sin volver ilegible la grilla. */
-export const MAX_CONDUCTAS_ACTIVAS = 8;
+/** "Trabajando ahora": la técnica recomienda 3 a 5; 6 entra bien en la grilla del celular. */
+export const MAX_CONDUCTAS_ACTIVAS = 6;
 /** Ventana en la que un vinculado puede anular lo que dio (para un toque equivocado). */
 export const VENTANA_ANULAR_MS = 15 * 60 * 1000;
 
@@ -81,7 +81,16 @@ export type Conducta = {
   foto: string | null;
   orden: number;
   activa: boolean;
+  /** v3: vale 2 estrellas para este chico. */
+  doble: boolean;
+  /** v3: clave del catálogo genérico del que salió, o null si es propia. */
+  catalogo: string | null;
 };
+
+/** v3: el tipo de la ficha lo define la conducta, no quien la da. */
+export function tipoDeConducta(c: Pick<Conducta, "doble">): TipoFicha {
+  return c.doble ? "doble" : "estrella";
+}
 
 export type Premio = {
   id: string;

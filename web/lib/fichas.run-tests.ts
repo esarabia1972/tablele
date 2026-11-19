@@ -3,8 +3,11 @@
 //
 //   node --experimental-strip-types lib/fichas.run-tests.ts
 
+import { CATALOGO } from "./catalogo-conductas.ts";
 import {
   LLEVA_CONDUCTA,
+  MAX_CONDUCTAS_ACTIVAS,
+  tipoDeConducta,
   calcularSaldo,
   informePorConducta,
   lunesDe,
@@ -168,6 +171,14 @@ check("informe: la tarea suma 3 esta semana", c1?.porSemana["2026-11-16"] === 3 
 check("informe: ordenar 1 (la de enero queda afuera)", inf.filas.find((x) => x.clave === "c2")?.total === 1);
 check("informe: fila sin conducta", inf.filas.find((x) => x.clave === "sin")?.texto === "sin conducta");
 check("informe: caritas no aparecen", inf.filas.reduce((a, x) => a + x.total, 0) === 5);
+
+// --- v3: biblioteca y Vale Doble por conducta
+check("conducta simple da estrella", tipoDeConducta({ doble: false }) === "estrella");
+check("conducta Vale Doble da doble", tipoDeConducta({ doble: true }) === "doble");
+check("máximo 6 activas", MAX_CONDUCTAS_ACTIVAS === 6);
+check("catálogo: claves únicas", new Set(CATALOGO.map((c) => c.clave)).size === CATALOGO.length);
+check("catálogo: textos válidos para '¡Gracias por …!'", CATALOGO.every((c) => c.texto.length <= 60 && c.texto === c.texto.toLowerCase().replace(/^./, (x) => x)));
+check("catálogo: todos con pictograma", CATALOGO.every((c) => Number.isInteger(c.picto) && c.picto > 0));
 
 // --- token
 check("token corto (16 bytes) válido", TOKEN_RE.test("jm3cwyzQ-6dDYNr4IloDzr"));

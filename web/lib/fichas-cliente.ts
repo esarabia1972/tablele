@@ -148,7 +148,11 @@ export const api = {
     post<{ token: string }>("/api/fichas/vinculos", { ...auth(s), accion: "crear", nombre }),
   revocar: (s: SesionAdmin, vinculoId: string) =>
     post("/api/fichas/vinculos", { ...auth(s), accion: "revocar", vinculoId }),
-  conducta: (s: SesionAdmin, accion: "crear" | "editar" | "archivar" | "activar" | "ordenar", datos: Record<string, unknown>) =>
+  conducta: (
+    s: SesionAdmin,
+    accion: "catalogo" | "crear" | "editar" | "activar" | "desactivar" | "doble" | "ordenar",
+    datos: Record<string, unknown>
+  ) =>
     post("/api/fichas/conductas", { ...auth(s), accion, ...datos }),
   premio: (s: SesionAdmin, accion: "crear" | "editar" | "archivar" | "activar", datos: Record<string, unknown>) =>
     post("/api/fichas/premios", { ...auth(s), accion, ...datos }),

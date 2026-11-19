@@ -21,6 +21,7 @@ import {
   VALOR,
   calcularSaldo,
   esTipo,
+  tipoDeConducta,
   limpiarTexto,
   validarFicha,
   fechaArgentina,
@@ -39,7 +40,7 @@ export const T_MOVIMIENTOS = "fichas_movimientos";
 
 export const COLS_FICHA =
   "id,tipo,valor,comentario,dada_por,dada_por_nombre,created_at,anulada_at,conducta_id,conducta_texto";
-export const COLS_CONDUCTA = "id,texto,picto,foto,orden,activa";
+export const COLS_CONDUCTA = "id,texto,picto,foto,orden,activa,doble,catalogo";
 export const COLS_PREMIO = "id,nombre,precio,picto,foto,orden,activo";
 export const COLS_MOV =
   "id,tipo,premio_id,premio_nombre,costo,saldo_antes,hecho_por_nombre,created_at,anulado_at";
@@ -241,15 +242,14 @@ export async function darFicha(p: {
 }): Promise<Response> {
   const id = String(p.body.id || "").trim().toLowerCase();
   if (!UUID_RE.test(id)) return error(400, "id-invalido");
-  const tipo = p.body.tipo;
+  let tipo = p.body.tipo;
   const comentario = limpiarTexto(p.body.comentario);
-  const err = validarFicha(tipo, comentario);
-  if (err || !esTipo(tipo)) return error(400, "ficha-invalida", err ?? undefined);
 
-  // v2: estrella y Vale Doble llevan una conducta activa de ESE chico; las
-  // caritas son libres. El texto se congela en la ficha.
+  // Las fichas con conducta (estrella / Vale Doble, o "conducta" a secas)
+  // llevan una conducta ACTIVA de ESE chico, y v3: el valor lo define la
+  // conducta, no quien la da. Las caritas son libres. Texto y valor se congelan.
   let conducta: Conducta | null = null;
-  if (LLEVA_CONDUCTA[tipo]) {
+  if (tipo === "conducta" || (esTipo(tipo) && LLEVA_CONDUCTA[tipo])) {
     const conductaId = String(p.body.conductaId || "").trim().toLowerCase();
     if (!UUID_RE.test(conductaId)) {
       return error(400, "falta-conducta", "Elegí por qué se gana la estrella.");
@@ -261,7 +261,10 @@ export async function darFicha(p: {
     if (!conducta || !conducta.activa) {
       return error(400, "conducta-inactiva", "Esa conducta ya no está en la lista. Volvé a elegir.");
     }
+    tipo = tipoDeConducta(conducta);
   }
+  const err = validarFicha(tipo, comentario);
+  if (err || !esTipo(tipo)) return error(400, "ficha-invalida", err ?? undefined);
 
   await sbInsert(
     T_FICHAS,

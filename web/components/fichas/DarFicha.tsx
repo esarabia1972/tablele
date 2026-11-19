@@ -3,8 +3,8 @@
 import { useState } from "react";
 import {
   COMENTARIO_OBLIGATORIO,
-  LLEVA_CONDUCTA,
   MAX_COMENTARIO,
+  tipoDeConducta,
   validarFicha,
   type Conducta,
   type TipoFicha,
@@ -12,16 +12,12 @@ import {
 import Picto from "./Picto";
 import { btn, card, errorTxt, input } from "./ui";
 
-const BOTONES: { tipo: TipoFicha; emoji: string; texto: string; clase: string }[] = [
-  { tipo: "estrella", emoji: "⭐", texto: "Estrella", clase: "bg-[#ffd23f] text-brand-dark" },
-  { tipo: "doble", emoji: "⭐⭐", texto: "Vale Doble", clase: "bg-brand-orange text-white" },
-  { tipo: "feliz", emoji: "🙂", texto: "Contento", clase: "bg-brand-green text-white" },
-  { tipo: "triste", emoji: "🙁", texto: "Triste", clase: "bg-brand-purple text-white" },
-];
+type Eleccion = { clase: "conducta"; c: Conducta } | { clase: "carita"; tipo: "feliz" | "triste" };
 
 /**
- * Dar una ficha. Estrella y Vale Doble piden elegir la conducta (el por qué);
- * las caritas son libres, con texto. Nada se manda hasta tocar "Dar".
+ * Dar una ficha (SPEC-fichas-v3.md §5). Se toca directamente la conducta que
+ * se trabaja: el valor lo pone ella (1 ⭐, o 2 si es Vale Doble, resaltada).
+ * Aparte, las caritas, libres y con texto. Nada se manda hasta tocar "Dar".
  */
 export default function DarFicha({
   nombreChico,
@@ -32,30 +28,26 @@ export default function DarFicha({
   nombreChico: string;
   /** Sólo las activas, en orden. */
   conductas: Conducta[];
-  /** Qué decir si no hay conductas cargadas. */
+  /** Qué decir si no hay conductas activas. */
   sinConductas: string;
   onDar: (tipo: TipoFicha, comentario: string, conductaId: string | null) => Promise<string | null>;
 }) {
-  const [tipo, setTipo] = useState<TipoFicha | null>(null);
-  const [conducta, setConducta] = useState<Conducta | null>(null);
+  const [eleccion, setEleccion] = useState<Eleccion | null>(null);
   const [comentario, setComentario] = useState("");
   const [error, setError] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [listo, setListo] = useState("");
 
   const limpiar = () => {
-    setTipo(null);
-    setConducta(null);
+    setEleccion(null);
     setComentario("");
     setError("");
   };
 
+  const tipo: TipoFicha | null = !eleccion ? null : eleccion.clase === "conducta" ? tipoDeConducta(eleccion.c) : eleccion.tipo;
+
   const enviar = async () => {
-    if (!tipo) return;
-    if (LLEVA_CONDUCTA[tipo] && !conducta) {
-      setError("Elegí por qué se gana la estrella.");
-      return;
-    }
+    if (!eleccion || !tipo) return;
     const c = comentario.trim();
     const err = validarFicha(tipo, c || null);
     if (err) {
@@ -63,77 +55,83 @@ export default function DarFicha({
       return;
     }
     setEnviando(true);
-    const e = await onDar(tipo, c, LLEVA_CONDUCTA[tipo] ? conducta?.id ?? null : null);
+    const e = await onDar(tipo, c, eleccion.clase === "conducta" ? eleccion.c.id : null);
     setEnviando(false);
     if (e) {
       setError(e);
       return;
     }
     setListo(
-      tipo === "triste"
-        ? "Quedó anotado."
-        : conducta && LLEVA_CONDUCTA[tipo]
-          ? `¡Listo! Le diste ${tipo === "doble" ? "un Vale Doble" : "una estrella"} por ${conducta.texto}.`
-          : `¡Listo! ${nombreChico} va a ver tu ficha.`
+      eleccion.clase === "conducta"
+        ? `¡Listo! ${eleccion.c.doble ? "⭐⭐" : "⭐"} por ${eleccion.c.texto}.`
+        : eleccion.tipo === "triste"
+          ? "Quedó anotado."
+          : `¡Listo! ${nombreChico} va a ver tu carita.`
     );
     limpiar();
     setTimeout(() => setListo(""), 3500);
   };
 
-  const pideConducta = tipo !== null && LLEVA_CONDUCTA[tipo];
+  const elegir = (e: Eleccion) => {
+    setEleccion(e);
+    setError("");
+    setListo("");
+  };
+
+  const elegida = (c: Conducta) => eleccion?.clase === "conducta" && eleccion.c.id === c.id;
 
   return (
     <div className={card}>
-      <div className="text-brand-dark font-bold text-lg">Darle una ficha a {nombreChico}</div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {BOTONES.map((b) => (
+      <div className="text-brand-dark font-bold text-lg">Hoy trabajamos con {nombreChico}</div>
+      {conductas.length === 0 ? (
+        <p className="text-brand-pink font-bold">{sinConductas}</p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {conductas.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => elegir({ clase: "conducta", c })}
+              className={`relative rounded-[20px] p-3 flex items-center gap-3 text-left border-4 shadow-[0_4px_0_rgba(0,0,0,0.12)] active:translate-y-1 active:shadow-none transition-transform ${
+                c.doble ? "bg-[#fff1e4] border-brand-orange" : "bg-[#fff6cf] border-[#ffd23f]"
+              } ${elegida(c) ? "ring-4 ring-brand-blue scale-[1.02]" : eleccion ? "opacity-60" : ""}`}
+            >
+              <Picto id={c.picto} foto={c.foto} tam={56} respaldo="⭐" />
+              <span className="flex-1 min-w-0 font-bold text-brand-dark leading-tight">{c.texto}</span>
+              <span
+                className={`shrink-0 rounded-full px-2 py-1 text-sm font-bold ${
+                  c.doble ? "bg-brand-orange text-white" : "bg-white/80 text-brand-dark"
+                }`}
+              >
+                {c.doble ? "⭐⭐ Vale doble" : "⭐"}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-brand-dark/70 text-sm">o anotar una carita:</span>
+        {(
+          [
+            ["feliz", "🙂 Contento", "bg-brand-green"],
+            ["triste", "🙁 Triste", "bg-brand-purple"],
+          ] as const
+        ).map(([t, txt, color]) => (
           <button
-            key={b.tipo}
+            key={t}
             type="button"
-            onClick={() => {
-              setTipo(b.tipo);
-              setError("");
-              setListo("");
-            }}
-            className={`${b.clase} rounded-[20px] py-3 px-2 font-bold shadow-[0_5px_0_rgba(0,0,0,0.18)] active:translate-y-1 active:shadow-none transition-transform flex flex-col items-center gap-1 ${
-              tipo === b.tipo ? "ring-4 ring-brand-blue scale-105" : tipo ? "opacity-60" : ""
+            onClick={() => elegir({ clase: "carita", tipo: t })}
+            className={`${color} text-white rounded-[16px] px-4 py-2 font-bold shadow-[0_3px_0_rgba(0,0,0,0.18)] active:translate-y-0.5 ${
+              eleccion?.clase === "carita" && eleccion.tipo === t ? "ring-4 ring-brand-blue" : eleccion ? "opacity-60" : ""
             }`}
           >
-            <span className="text-3xl leading-none">{b.emoji}</span>
-            <span>{b.texto}</span>
+            {txt}
           </button>
         ))}
       </div>
 
-      {pideConducta && (
-        <div className="flex flex-col gap-2">
-          <div className="font-bold text-brand-dark">¿Por qué? ¡Gracias por…</div>
-          {conductas.length === 0 ? (
-            <p className="text-brand-pink font-bold">{sinConductas}</p>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {conductas.map((c) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => {
-                    setConducta(c);
-                    setError("");
-                  }}
-                  className={`bg-white rounded-2xl p-2 flex items-center gap-2 text-left border-4 transition-transform active:translate-y-0.5 ${
-                    conducta?.id === c.id ? "border-brand-green" : "border-transparent"
-                  }`}
-                >
-                  <Picto id={c.picto} foto={c.foto} tam={44} respaldo="⭐" />
-                  <span className="font-bold text-brand-dark leading-tight">{c.texto}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {tipo && (
+      {eleccion && tipo && (
         <>
           <textarea
             value={comentario}
@@ -146,20 +144,19 @@ export default function DarFicha({
             placeholder={
               COMENTARIO_OBLIGATORIO[tipo]
                 ? "¿Qué pasó? (obligatorio)"
-                : pideConducta
+                : eleccion.clase === "conducta"
                   ? "Algo más para contarle (opcional)"
                   : "¿Por qué? (opcional)"
             }
             className={`${input} resize-none`}
           />
           <div className="flex gap-3">
-            <button
-              type="button"
-              disabled={enviando || (pideConducta && conductas.length === 0)}
-              onClick={() => void enviar()}
-              className={`${btn} flex-1`}
-            >
-              {enviando ? "Enviando..." : "Dar"}
+            <button type="button" disabled={enviando} onClick={() => void enviar()} className={`${btn} flex-1`}>
+              {enviando
+                ? "Enviando..."
+                : eleccion.clase === "conducta"
+                  ? `Dar ${eleccion.c.doble ? "⭐⭐" : "⭐"}`
+                  : "Anotar"}
             </button>
             <button type="button" disabled={enviando} onClick={limpiar} className="bg-gray-200 text-gray-700 rounded-[20px] px-5 font-bold">
               Cancelar

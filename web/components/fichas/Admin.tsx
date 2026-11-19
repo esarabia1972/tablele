@@ -20,6 +20,7 @@ import {
   type Tablero,
   type VinculoListado,
 } from "@/lib/fichas-cliente";
+import { CATALOGO } from "@/lib/catalogo-conductas";
 import DarFicha from "./DarFicha";
 import ListaFichas from "./ListaFichas";
 import ModoChico from "./ModoChico";
@@ -227,7 +228,7 @@ function PestanaTablero({
       <DarFicha
         nombreChico={t.chico.nombre}
         conductas={activas}
-        sinConductas="Primero cargá las conductas en la pestaña Conductas y premios."
+        sinConductas="Todavía no hay conductas activas. Activalas en Conductas y premios."
         onDar={dar}
       />
 
@@ -443,13 +444,66 @@ function EditorItem({
   );
 }
 
+function ItemBiblioteca({
+  texto,
+  picto,
+  foto,
+  propia,
+  lleno,
+  onActivar,
+  onEditar,
+}: {
+  texto: string;
+  picto: number | null;
+  foto: string | null;
+  propia: boolean;
+  lleno: boolean;
+  onActivar: (doble: boolean) => void;
+  onEditar?: () => void;
+}) {
+  return (
+    <li className="flex items-center gap-2 bg-white/70 rounded-2xl p-2">
+      <Picto id={picto} foto={foto} tam={36} respaldo="⭐" />
+      <span className="flex-1 min-w-0 text-brand-dark leading-tight">
+        {texto}
+        {propia && <span className="text-xs opacity-60"> · propia</span>}
+      </span>
+      {onEditar && (
+        <button type="button" className="text-brand-blue text-sm font-bold px-1" onClick={onEditar}>
+          Editar
+        </button>
+      )}
+      <button
+        type="button"
+        disabled={lleno}
+        onClick={() => onActivar(false)}
+        className="bg-brand-green text-white rounded-xl px-3 py-1 text-sm font-bold disabled:opacity-40"
+      >
+        Activar
+      </button>
+      <button
+        type="button"
+        disabled={lleno}
+        onClick={() => onActivar(true)}
+        title="Activar como Vale Doble"
+        className="bg-brand-orange text-white rounded-xl px-2 py-1 text-sm font-bold disabled:opacity-40"
+      >
+        ⭐⭐
+      </button>
+    </li>
+  );
+}
+
 function PestanaAjustes({ s, t, recargar }: { s: SesionAdmin; t: Tablero; recargar: () => void }) {
   const [editando, setEditando] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [verArchivo, setVerArchivo] = useState(false);
 
   const activas = t.conductas.filter((c) => c.activa);
-  const archivadas = t.conductas.filter((c) => !c.activa);
+  const desactivadas = t.conductas.filter((c) => !c.activa);
+  const usadas = new Set(t.conductas.map((c) => c.catalogo).filter(Boolean));
+  const delCatalogo = CATALOGO.filter((i) => !usadas.has(i.clave));
+  const lleno = activas.length >= MAX_CONDUCTAS_ACTIVAS;
   const premios = t.premios.filter((p) => p.activo);
   const premiosArch = t.premios.filter((p) => !p.activo);
 
@@ -478,12 +532,18 @@ function PestanaAjustes({ s, t, recargar }: { s: SesionAdmin; t: Tablero; recarg
   return (
     <div className="flex flex-col gap-5 w-full">
       <div className={card}>
-        <div className={titulo}>Conductas</div>
+        <div className="flex items-baseline justify-between gap-2 flex-wrap">
+          <div className={titulo}>Trabajando ahora</div>
+          <div className={`font-bold ${lleno ? "text-brand-pink" : "text-brand-dark/60"}`}>
+            {activas.length} de {MAX_CONDUCTAS_ACTIVAS}
+          </div>
+        </div>
         <p className="text-brand-blue">
-          Lo que {t.chico.nombre} está aprendiendo, dicho en positivo. Quien da una estrella elige una de estas, y {t.chico.nombre} lo
-          ve como un agradecimiento. Conviene tener entre 3 y 5 (hasta {MAX_CONDUCTAS_ACTIVAS}).
+          Las conductas que se trabajan ahora con {t.chico.nombre}. Son las únicas que ve quien le da fichas, y valen 1 ⭐. Marcá como{" "}
+          <b>Vale Doble</b> las que más cuestan: valen 2.
         </p>
         {error && <div className={errorTxt}>{error}</div>}
+        {activas.length === 0 && <p className="text-brand-pink font-bold">Todavía no hay ninguna. Activá alguna de la biblioteca.</p>}
         <ul className="flex flex-col gap-2">
           {activas.map((c, i) =>
             editando === c.id ? (
@@ -492,14 +552,31 @@ function PestanaAjustes({ s, t, recargar }: { s: SesionAdmin; t: Tablero; recarg
                   s={s}
                   tipo="conducta"
                   inicial={{ texto: c.texto, picto: c.picto, foto: c.foto }}
-                  onGuardar={async (d) => resultado(await api.conducta(s, "editar", { conductaId: c.id, texto: d.texto, picto: d.picto, foto: d.foto }))}
+                  onGuardar={async (d) =>
+                    resultado(await api.conducta(s, "editar", { conductaId: c.id, texto: d.texto, picto: d.picto, foto: d.foto }))
+                  }
                   onCancelar={() => setEditando(null)}
                 />
               </li>
             ) : (
-              <li key={c.id} className="flex items-center gap-2 bg-white rounded-2xl p-2">
-                <Picto id={c.picto} foto={c.foto} tam={40} respaldo="⭐" />
-                <span className="flex-1 font-bold text-brand-dark">¡Gracias por {c.texto}!</span>
+              <li
+                key={c.id}
+                className={`flex items-center gap-2 rounded-2xl p-2 flex-wrap border-4 ${
+                  c.doble ? "bg-[#fff1e4] border-brand-orange" : "bg-white border-transparent"
+                }`}
+              >
+                <Picto id={c.picto} foto={c.foto} tam={44} respaldo="⭐" />
+                <span className="flex-1 min-w-[160px] font-bold text-brand-dark">¡Gracias por {c.texto}!</span>
+                <button
+                  type="button"
+                  onClick={() => void accion(api.conducta(s, "doble", { conductaId: c.id, doble: !c.doble }))}
+                  className={`rounded-full px-3 py-1 font-bold text-sm border-2 ${
+                    c.doble ? "bg-brand-orange text-white border-brand-orange" : "bg-white text-brand-orange border-brand-orange/50"
+                  }`}
+                  aria-pressed={c.doble}
+                >
+                  {c.doble ? "⭐⭐ Vale doble" : "⭐ Simple"}
+                </button>
                 <button type="button" aria-label="Subir" className="px-2 text-lg disabled:opacity-20" disabled={i === 0} onClick={() => mover(c, -1)}>
                   ↑
                 </button>
@@ -518,21 +595,69 @@ function PestanaAjustes({ s, t, recargar }: { s: SesionAdmin; t: Tablero; recarg
                 <button
                   type="button"
                   className="text-brand-pink font-bold px-2"
-                  onClick={() => void accion(api.conducta(s, "archivar", { conductaId: c.id }))}
+                  onClick={() => void accion(api.conducta(s, "desactivar", { conductaId: c.id }))}
                 >
-                  Archivar
+                  Quitar
                 </button>
               </li>
             )
           )}
         </ul>
-        {activas.length < MAX_CONDUCTAS_ACTIVAS && (
-          <EditorItem
-            s={s}
-            tipo="conducta"
-            onGuardar={async (d) => resultado(await api.conducta(s, "crear", { texto: d.texto, picto: d.picto, foto: d.foto }))}
-          />
-        )}
+      </div>
+
+      <div className={card}>
+        <div className={titulo}>Biblioteca de conductas</div>
+        <p className="text-brand-blue">
+          {lleno
+            ? `Ya hay ${MAX_CONDUCTAS_ACTIVAS} trabajándose. Quitá alguna de arriba para activar otra.`
+            : "Tocá Activar para empezar a trabajar una. Lo que quites de arriba vuelve acá."}
+        </p>
+        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {desactivadas.map((c) =>
+            editando === c.id ? (
+              <li key={c.id} className="sm:col-span-2">
+                <EditorItem
+                  s={s}
+                  tipo="conducta"
+                  inicial={{ texto: c.texto, picto: c.picto, foto: c.foto }}
+                  onGuardar={async (d) =>
+                    resultado(await api.conducta(s, "editar", { conductaId: c.id, texto: d.texto, picto: d.picto, foto: d.foto }))
+                  }
+                  onCancelar={() => setEditando(null)}
+                />
+              </li>
+            ) : (
+              <ItemBiblioteca
+                key={c.id}
+                texto={c.texto}
+                picto={c.picto}
+                foto={c.foto}
+                propia={!c.catalogo}
+                lleno={lleno}
+                onActivar={(doble) => void accion(api.conducta(s, "activar", { conductaId: c.id, doble }))}
+                onEditar={() => setEditando(c.id)}
+              />
+            )
+          )}
+          {delCatalogo.map((it) => (
+            <ItemBiblioteca
+              key={it.clave}
+              texto={it.texto}
+              picto={it.picto}
+              foto={null}
+              propia={false}
+              lleno={lleno}
+              onActivar={(doble) => void accion(api.conducta(s, "catalogo", { clave: it.clave, doble }))}
+            />
+          ))}
+        </ul>
+        <div className="font-bold text-brand-dark mt-2">Agregar una conducta propia</div>
+        <EditorItem
+          s={s}
+          tipo="conducta"
+          onGuardar={async (d) => resultado(await api.conducta(s, "crear", { texto: d.texto, picto: d.picto, foto: d.foto }))}
+        />
+        {lleno && <p className="text-sm opacity-60 -mt-2">Como ya hay {MAX_CONDUCTAS_ACTIVAS} activas, la nueva queda en la biblioteca.</p>}
       </div>
 
       <div className={card}>
@@ -580,26 +705,13 @@ function PestanaAjustes({ s, t, recargar }: { s: SesionAdmin; t: Tablero; recarg
         />
       </div>
 
-      {(archivadas.length > 0 || premiosArch.length > 0) && (
+      {premiosArch.length > 0 && (
         <div className={card}>
           <button type="button" className="text-left font-bold text-brand-dark" onClick={() => setVerArchivo(!verArchivo)}>
-            {verArchivo ? "▾" : "▸"} Archivados ({archivadas.length + premiosArch.length})
+            {verArchivo ? "▾" : "▸"} Premios archivados ({premiosArch.length})
           </button>
           {verArchivo && (
             <ul className="flex flex-col gap-2">
-              {archivadas.map((c) => (
-                <li key={c.id} className="flex items-center gap-2 bg-white/60 rounded-2xl p-2">
-                  <Picto id={c.picto} foto={c.foto} tam={32} respaldo="⭐" />
-                  <span className="flex-1">{c.texto}</span>
-                  <button
-                    type="button"
-                    className="text-brand-blue font-bold px-2"
-                    onClick={() => void accion(api.conducta(s, "activar", { conductaId: c.id }))}
-                  >
-                    Reactivar
-                  </button>
-                </li>
-              ))}
               {premiosArch.map((p) => (
                 <li key={p.id} className="flex items-center gap-2 bg-white/60 rounded-2xl p-2">
                   <Picto id={p.picto} foto={p.foto} tam={32} respaldo="🎁" />
