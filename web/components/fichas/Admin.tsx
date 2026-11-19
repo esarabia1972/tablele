@@ -813,7 +813,17 @@ export default function Admin({ onIrAVinculo }: { onIrAVinculo?: () => void } = 
   };
 
   if (modoChico && t) {
-    return <ModoChico tablero={t} onSalir={() => setModoChico(false)} />;
+    return (
+      <ModoChico
+        tablero={t}
+        onSalir={() => setModoChico(false)}
+        onCanjear={async (p) => {
+          const r = await api.canjear(s, p.id);
+          await recargar();
+          return r.ok ? null : r.message || "No se pudo canjear.";
+        }}
+      />
+    );
   }
 
   return (

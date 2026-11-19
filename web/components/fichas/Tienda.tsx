@@ -8,12 +8,15 @@ export default function Tienda({
   saldo,
   premios,
   onCanjear,
+  onElegir,
   grande = false,
 }: {
   saldo: number;
   /** Sólo los activos. */
   premios: Premio[];
   onCanjear?: (p: Premio) => void;
+  /** Modo chico: tocar la tarjeta entera (lee el premio y, si alcanza, ofrece canjearlo). */
+  onElegir?: (p: Premio) => void;
   grande?: boolean;
 }) {
   const s = Math.max(0, saldo);
@@ -32,9 +35,13 @@ export default function Tienda({
             return (
               <div
                 key={p.id}
+                role={onElegir ? "button" : undefined}
+                tabIndex={onElegir ? 0 : undefined}
+                onClick={onElegir ? () => onElegir(p) : undefined}
+                onKeyDown={onElegir ? (e) => e.key === "Enter" && onElegir(p) : undefined}
                 className={`rounded-2xl p-3 flex flex-col items-center gap-1 text-center border-4 ${
                   alcanza ? "bg-[#fff6cf] border-[#ffd23f] animate-glow" : "bg-white border-transparent"
-                }`}
+                } ${onElegir ? "cursor-pointer active:scale-95 transition-transform" : ""}`}
               >
                 <Picto id={p.picto} foto={p.foto} tam={grande ? 80 : 56} respaldo="🎁" />
                 <div className={`font-bold text-brand-dark leading-tight ${grande ? "text-xl" : ""}`}>{p.nombre}</div>
