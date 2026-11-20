@@ -87,24 +87,30 @@ export default function DarFicha({
       {conductas.length === 0 ? (
         <p className="text-brand-pink font-bold">{sinConductas}</p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           {conductas.map((c) => (
             <button
               key={c.id}
               type="button"
               onClick={() => elegir({ clase: "conducta", c })}
-              className={`relative rounded-[20px] p-3 flex items-center gap-3 text-left border-4 shadow-[0_4px_0_rgba(0,0,0,0.12)] active:translate-y-1 active:shadow-none transition-transform ${
+              className={`relative rounded-[22px] p-3 pt-4 flex flex-col items-center gap-2 text-center border-4 shadow-[0_4px_0_rgba(0,0,0,0.12)] active:translate-y-1 active:shadow-none transition-all ${
                 c.doble ? "bg-[#fff1e4] border-brand-orange" : "bg-[#fff6cf] border-[#ffd23f]"
-              } ${elegida(c) ? "ring-4 ring-brand-blue scale-[1.02]" : eleccion ? "opacity-60" : ""}`}
+              } ${elegida(c) ? "ring-4 ring-brand-blue ring-offset-2" : eleccion ? "opacity-70" : ""}`}
             >
-              <Picto id={c.picto} foto={c.foto} tam={56} respaldo="⭐" />
-              <span className="flex-1 min-w-0 font-bold text-brand-dark leading-tight">{c.texto}</span>
-              <span className="flex flex-col items-center shrink-0">
-                <Estrellas doble={c.doble} tam={56} />
-                {c.doble && (
-                  <span className="rounded-full px-2 text-xs font-bold bg-brand-orange text-white -mt-1">Vale doble</span>
-                )}
+              {elegida(c) && (
+                <span className="absolute -top-3 -right-3 w-8 h-8 rounded-full bg-brand-blue text-white font-bold flex items-center justify-center shadow">
+                  ✓
+                </span>
+              )}
+              {/* Pictograma y estrellas del mismo tamaño, lado a lado. */}
+              <span className="flex items-center justify-center gap-2">
+                <Picto id={c.picto} foto={c.foto} tam={64} respaldo="🙂" />
+                <Estrellas doble={c.doble} tam={64} />
               </span>
+              <span className="font-bold text-brand-dark leading-tight text-[1.05rem]">{c.texto}</span>
+              {c.doble && (
+                <span className="rounded-full px-3 py-0.5 text-xs font-bold bg-brand-orange text-white">Vale doble</span>
+              )}
             </button>
           ))}
         </div>
